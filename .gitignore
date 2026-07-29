@@ -1,0 +1,23 @@
+# Dependencies
+web/node_modules/
+web/.next/
+web/out/
+
+# Python
+scripts/__pycache__/
+**/__pycache__/
+*.pyc
+
+# Personal inventory dumps (do not publish)
+scripts/data/inventory_raw.json
+scripts/data/inventory_categorized.json
+scripts/data/inventory_lists.json
+web/public/data/owned.json
+
+# Cache can be regenerated
+scripts/data/cache/
+
+# Env / OS
+.env*
+.DS_Store
+.vscode/
