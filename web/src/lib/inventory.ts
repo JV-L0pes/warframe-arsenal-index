@@ -240,25 +240,24 @@ export type ExportEntry = {
   mastery?: "done" | "open";
 };
 
+/** Mods are plain names; weapons/warframes keep status objects. */
+export type ExportPayload = Record<string, string[] | ExportEntry[]>;
+
 export function buildCategorizedLists(
   catalog: Catalog,
   owned: OwnedSnapshot | null,
-): Record<string, ExportEntry[]> {
+): ExportPayload {
   const ownedMods = new Map(
     (owned?.mods ?? []).map((m) => [m.uniqueName, m] as const),
   );
-  const lists: Record<string, ExportEntry[]> = {};
+  const lists: ExportPayload = {};
 
   for (const mod of catalog.mods) {
     const o = ownedMods.get(mod.uniqueName);
     if (!o) continue;
     const key = `mods_${mod.category}`;
-    if (!lists[key]) lists[key] = [];
-    lists[key].push({
-      name: mod.name,
-      rank: o.rank,
-      count: o.count > 1 ? o.count : undefined,
-    });
+    if (!lists[key]) lists[key] = [] as string[];
+    (lists[key] as string[]).push(mod.name);
   }
 
   const ownedWeapons = new Map(
@@ -268,9 +267,9 @@ export function buildCategorizedLists(
     const o = ownedWeapons.get(w.uniqueName);
     if (!o) continue;
     const key = `${w.slot}_${w.subtype}`;
-    if (!lists[key]) lists[key] = [];
+    if (!lists[key]) lists[key] = [] as ExportEntry[];
     const masteryDone = Boolean(o.masteryDone);
-    lists[key].push({
+    (lists[key] as ExportEntry[]).push({
       name: w.name,
       rank: o.rank ?? null,
       polarized: o.polarized ?? 0,
@@ -282,12 +281,12 @@ export function buildCategorizedLists(
   const ownedFrames = new Map(
     (owned?.warframes ?? []).map((f) => [f.uniqueName, f] as const),
   );
-  lists.warframes = [];
+  const frames: ExportEntry[] = [];
   for (const f of catalog.warframes) {
     const o = ownedFrames.get(f.uniqueName);
     if (!o) continue;
     const masteryDone = Boolean(o.masteryDone);
-    lists.warframes.push({
+    frames.push({
       name: f.name,
       rank: o.rank ?? null,
       polarized: o.polarized ?? 0,
@@ -295,9 +294,15 @@ export function buildCategorizedLists(
       mastery: masteryDone ? "done" : "open",
     });
   }
+  lists.warframes = frames;
 
   for (const key of Object.keys(lists)) {
-    lists[key].sort((a, b) => a.name.localeCompare(b.name));
+    const list = lists[key];
+    if (list.length && typeof list[0] === "string") {
+      (list as string[]).sort((a, b) => a.localeCompare(b));
+    } else {
+      (list as ExportEntry[]).sort((a, b) => a.name.localeCompare(b.name));
+    }
   }
   return lists;
 }

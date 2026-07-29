@@ -56,9 +56,7 @@ In the UI: **Import JSON** → `scripts/data/inventory_raw.json`
 
 ```json
 {
-  "mods_rifle": [
-    { "name": "Serration", "rank": 10 }
-  ],
+  "mods_rifle": ["Serration", "Split Chamber"],
   "primary_bow": [
     {
       "name": "Nataruk",
@@ -80,7 +78,7 @@ In the UI: **Import JSON** → `scripts/data/inventory_raw.json`
 }
 ```
 
-`polarized` = Forma count. `mastery: "done"` = ranks 1–30 MR already claimed (Forma ≥ 1 or rank 30).
+Mods export as **name strings only**. Weapons/warframes keep rank · Forma · mastery status.
 ## Rebuild catalog
 
 ```bash
