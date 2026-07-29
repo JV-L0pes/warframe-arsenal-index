@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,13 +10,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   buildCategorizedLists,
-  enrichOwnedSnapshot,
   formatSyncedAt,
   isInventoryStale,
-  OWNED_STORAGE_KEY,
   parseInventoryFile,
   STALE_AFTER_DAYS,
 } from "@/lib/inventory";
+import { useOwnedInventory } from "@/lib/use-owned-inventory";
 import {
   MOD_CATEGORY_META,
   polarityLabel,
@@ -35,7 +34,7 @@ type Props = {
 };
 
 export function ArsenalApp({ catalog, initialOwned }: Props) {
-  const [owned, setOwned] = useState<OwnedSnapshot | null>(initialOwned);
+  const { owned, persistOwned } = useOwnedInventory(initialOwned);
   const [section, setSection] = useState<Section>("mods");
   const [category, setCategory] = useState<string>("rifle");
   const [filter, setFilter] = useState<OwnershipFilter>("all");
@@ -43,25 +42,6 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
   const [hideAugments, setHideAugments] = useState(true);
   const [copied, setCopied] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(OWNED_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as unknown;
-      const result = parseInventoryFile(parsed);
-      if (result.ok) setOwned(enrichOwnedSnapshot(result.owned));
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const persistOwned = useCallback((next: OwnedSnapshot | null) => {
-    setOwned(next);
-    if (next) localStorage.setItem(OWNED_STORAGE_KEY, JSON.stringify(next));
-    else localStorage.removeItem(OWNED_STORAGE_KEY);
-  }, []);
-
   const ownedModMap = useMemo(() => {
     const m = new Map<string, { rank: number | null; count: number }>();
     for (const o of owned?.mods ?? []) {
@@ -225,7 +205,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     <div className="flex min-h-screen flex-col">
       <DisclaimerDialog />
       <header className="border-b border-border">
-        <div className="mx-auto flex w-full max-w-[1400px] items-end justify-between gap-6 px-6 py-8">
+        <div className="mx-auto flex w-full max-w-350 items-end justify-between gap-6 px-6 py-8">
           <div>
             <p className="font-mono text-[11px] tracking-[0.22em] text-muted-foreground uppercase">
               Warframe · Personal tool
@@ -268,7 +248,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col gap-0 md:flex-row">
+      <div className="mx-auto flex w-full max-w-350 flex-1 flex-col gap-0 md:flex-row">
         <aside className="w-full shrink-0 border-b border-border md:w-56 md:border-r md:border-b-0">
           <div className="sticky top-0 space-y-6 p-4 md:p-5">
             <nav className="flex gap-1 md:flex-col">
