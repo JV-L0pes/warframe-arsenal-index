@@ -36,7 +36,7 @@ type Props = {
 export function ArsenalApp({ catalog, initialOwned }: Props) {
   const { owned, persistOwned } = useOwnedInventory(initialOwned);
   const [section, setSection] = useState<Section>("mods");
-  const [category, setCategory] = useState<string>("rifle");
+  const [category, setCategory] = useState<string>("all");
   const [filter, setFilter] = useState<OwnershipFilter>("all");
   const [query, setQuery] = useState("");
   const [hideAugments, setHideAugments] = useState(true);
@@ -68,21 +68,46 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
   }, [owned]);
 
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, { total: number; owned: number }> = {};
+    const counts: Record<string, { total: number; owned: number }> = {
+      all: { total: 0, owned: 0 },
+    };
     for (const mod of catalog.mods) {
       if (hideAugments && mod.isAugment) continue;
       const c = mod.category;
       if (!counts[c]) counts[c] = { total: 0, owned: 0 };
       counts[c].total += 1;
-      if (ownedModMap.has(mod.uniqueName)) counts[c].owned += 1;
+      counts.all.total += 1;
+      if (ownedModMap.has(mod.uniqueName)) {
+        counts[c].owned += 1;
+        counts.all.owned += 1;
+      }
     }
     return counts;
   }, [catalog.mods, hideAugments, ownedModMap]);
 
+  const weaponSlotCounts = useMemo(() => {
+    const counts: Record<string, { total: number; owned: number }> = {
+      all: { total: 0, owned: 0 },
+      primary: { total: 0, owned: 0 },
+      secondary: { total: 0, owned: 0 },
+      melee: { total: 0, owned: 0 },
+    };
+    for (const w of catalog.weapons) {
+      const slot = counts[w.slot] ?? (counts[w.slot] = { total: 0, owned: 0 });
+      slot.total += 1;
+      counts.all.total += 1;
+      if (ownedWeaponMap.has(w.uniqueName)) {
+        slot.owned += 1;
+        counts.all.owned += 1;
+      }
+    }
+    return counts;
+  }, [catalog.weapons, ownedWeaponMap]);
+
   const filteredMods = useMemo(() => {
     const q = query.trim().toLowerCase();
     return catalog.mods.filter((mod) => {
-      if (mod.category !== category) return false;
+      if (category !== "all" && mod.category !== category) return false;
       if (hideAugments && mod.isAugment) return false;
       const isOwned = ownedModMap.has(mod.uniqueName);
       if (filter === "owned" && !isOwned) return false;
@@ -96,14 +121,18 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
   }, [catalog.mods, category, filter, hideAugments, ownedModMap, query]);
 
   const weaponSlot =
-    category === "primary" || category === "secondary" || category === "melee"
-      ? category
-      : "primary";
+    category === "all"
+      ? "all"
+      : category === "primary" ||
+          category === "secondary" ||
+          category === "melee"
+        ? category
+        : "primary";
 
   const filteredWeapons = useMemo(() => {
     const q = query.trim().toLowerCase();
     return catalog.weapons.filter((w) => {
-      if (w.slot !== weaponSlot) return false;
+      if (weaponSlot !== "all" && w.slot !== weaponSlot) return false;
       const isOwned = ownedWeaponMap.has(w.uniqueName);
       if (filter === "owned" && !isOwned) return false;
       if (filter === "missing" && isOwned) return false;
@@ -125,13 +154,10 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
 
   const progress = useMemo(() => {
     if (section === "mods") {
-      const c = categoryCounts[category] ?? { total: 0, owned: 0 };
-      return c;
+      return categoryCounts[category] ?? { total: 0, owned: 0 };
     }
     if (section === "weapons") {
-      const list = catalog.weapons.filter((w) => w.slot === weaponSlot);
-      const ownedN = list.filter((w) => ownedWeaponMap.has(w.uniqueName)).length;
-      return { total: list.length, owned: ownedN };
+      return weaponSlotCounts[weaponSlot] ?? { total: 0, owned: 0 };
     }
     const ownedN = catalog.warframes.filter((f) =>
       ownedFrameMap.has(f.uniqueName),
@@ -141,10 +167,9 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     section,
     categoryCounts,
     category,
-    catalog.weapons,
     catalog.warframes,
     weaponSlot,
-    ownedWeaponMap,
+    weaponSlotCounts,
     ownedFrameMap,
   ]);
 
@@ -264,8 +289,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                   type="button"
                   onClick={() => {
                     setSection(id);
-                    if (id === "weapons") setCategory("primary");
-                    if (id === "mods") setCategory("rifle");
+                    if (id === "weapons" || id === "mods") setCategory("all");
                     if (id === "warframes") setCategory("warframes");
                   }}
                   className={cn(
@@ -282,6 +306,22 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
 
             {section === "mods" && (
               <div className="space-y-4">
+                <button
+                  type="button"
+                  onClick={() => setCategory("all")}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                    category === "all"
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                  )}
+                >
+                  <span>All</span>
+                  <span className="font-mono text-[10px] tabular-nums opacity-70">
+                    {categoryCounts.all?.owned ?? 0}/
+                    {categoryCounts.all?.total ?? 0}
+                  </span>
+                </button>
                 {groups.map(([group, items]) => (
                   <div key={group}>
                     <p className="mb-1.5 font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
@@ -318,22 +358,30 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
 
             {section === "weapons" && (
               <ul className="space-y-0.5">
-                {(["primary", "secondary", "melee"] as const).map((slot) => (
-                  <li key={slot}>
-                    <button
-                      type="button"
-                      onClick={() => setCategory(slot)}
-                      className={cn(
-                        "w-full rounded-md px-2.5 py-1.5 text-left text-sm capitalize transition-colors",
-                        category === slot
-                          ? "bg-muted text-foreground"
-                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                      )}
-                    >
-                      {slot}
-                    </button>
-                  </li>
-                ))}
+                {(["all", "primary", "secondary", "melee"] as const).map(
+                  (slot) => {
+                    const c = weaponSlotCounts[slot];
+                    return (
+                      <li key={slot}>
+                        <button
+                          type="button"
+                          onClick={() => setCategory(slot)}
+                          className={cn(
+                            "flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-sm capitalize transition-colors",
+                            category === slot
+                              ? "bg-muted text-foreground"
+                              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                          )}
+                        >
+                          <span>{slot}</span>
+                          <span className="font-mono text-[10px] tabular-nums opacity-70">
+                            {c?.owned ?? 0}/{c?.total ?? 0}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  },
+                )}
               </ul>
             )}
           </div>
@@ -362,10 +410,14 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                 <div className="flex items-baseline gap-3">
                   <h2 className="text-lg font-medium capitalize tracking-tight">
                     {section === "mods"
-                      ? (MOD_CATEGORY_META.find((m) => m.id === category)
-                          ?.label ?? category)
+                      ? category === "all"
+                        ? "All mods"
+                        : (MOD_CATEGORY_META.find((m) => m.id === category)
+                            ?.label ?? category)
                       : section === "weapons"
-                        ? category
+                        ? category === "all"
+                          ? "All weapons"
+                          : category
                         : "Warframes"}
                   </h2>
                   <span className="font-mono text-xs text-muted-foreground tabular-nums">

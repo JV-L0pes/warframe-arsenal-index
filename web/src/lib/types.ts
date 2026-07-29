@@ -130,6 +130,8 @@ export const MOD_CATEGORY_META: {
   { id: "kdrive", label: "K-Drive", group: "Other" },
   { id: "railjack", label: "Railjack", group: "Other" },
   { id: "universal", label: "Universal", group: "Other" },
+  { id: "pvp", label: "Conclave", group: "Other" },
+  { id: "riven", label: "Riven", group: "Other" },
   { id: "other", label: "Other", group: "Other" },
 ];
 

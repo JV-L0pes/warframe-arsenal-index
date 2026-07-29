@@ -77,6 +77,11 @@ def clean(name: str | None) -> str:
 
 
 def mod_cat(u: dict) -> str:
+    path = u.get("uniqueName", "")
+    if "/PvPMods/" in path or "/PvP/" in path:
+        return "pvp"
+    if "Riven" in path or "RandomMod" in path:
+        return "riven"
     for key in (u.get("compatName"), u.get("type")):
         if not key:
             continue
@@ -86,7 +91,6 @@ def mod_cat(u: dict) -> str:
         for k, v in MOD_MAP.items():
             if k.upper() == up or k.upper() in up:
                 return v
-    path = u.get("uniqueName", "")
     if "/Warframe/" in path:
         return "warframe"
     if "/Aura/" in path:
@@ -104,11 +108,17 @@ def mod_cat(u: dict) -> str:
     return "other"
 
 
+def mod_display_name(u: dict) -> str:
+    name = clean(u.get("name"))
+    un = u.get("uniqueName", "")
+    # Beginner path = flawed starter; DE reuses the same display name.
+    if "/Beginner/" in un and "(Flawed)" not in name:
+        return f"{name} (Flawed)"
+    return name
+
+
 def is_augment(u: dict) -> bool:
     t = str(u.get("type") or "").upper()
-    if t in {"STANCE", "AURA", "WARFRAME", "PRIMARY", "SECONDARY", "MELEE"}:
-        # still allow frame-specific augments (compatName is a frame name)
-        pass
     if t == "STANCE" or t == "AURA":
         return False
     cn = u.get("compatName") or ""
@@ -133,16 +143,6 @@ def is_augment(u: dict) -> bool:
     ):
         return False
     return True
-
-
-def should_skip_mod(un: str) -> bool:
-    if "Riven" in un or "RandomMod" in un:
-        return True
-    if "/PvPMods/" in un or "/PvP/" in un:
-        return True
-    if "/Beginner/" in un or "/Expert/" in un:
-        return True
-    return False
 
 
 def http_get(url: str) -> bytes:
@@ -286,12 +286,10 @@ def main() -> int:
     mods = []
     for u in ups:
         un = u.get("uniqueName", "")
-        if should_skip_mod(un):
-            continue
         mods.append(
             {
                 "uniqueName": un,
-                "name": clean(u.get("name")),
+                "name": mod_display_name(u),
                 "category": mod_cat(u),
                 "compatName": u.get("compatName"),
                 "type": u.get("type"),
@@ -361,9 +359,7 @@ def main() -> int:
         "generatedFrom": "Warframe Public Export + warframestat.us",
         "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "filters": [
-            "skip Riven/RandomMod",
-            "skip PvPMods",
-            "skip Beginner/Expert variants",
+            "full Public Export (no mod skips)",
             STALE_NOTE,
         ],
         "weaponSubtypeSources": dict(source_counts),
