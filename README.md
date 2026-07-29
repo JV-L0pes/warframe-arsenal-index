@@ -66,12 +66,22 @@ In the UI: **Import JSON** → `scripts/data/inventory_raw.json`
 ## Rebuild catalog
 
 ```bash
-cd scripts
-python3 categorize.py          # refresh Public Export cache
-python3 build_catalog.py       # writes web/public/data/catalog.json
+# downloads Public Export + warframestat, writes web/public/data/catalog.json
+python3 scripts/build_catalog.py --refresh
 ```
 
-Catalog embeds `generatedAt`, source, and applied filters (skips PvP / Beginner / Expert / Rivens). Weapon subtypes prefer [warframestat.us](https://warframestat.us) `type` matched by `uniqueName`, with Export/heuristics as fallback.
+### CI (no cloud host)
+
+GitHub Actions refreshes the catalog automatically:
+
+| Trigger | When |
+|---------|------|
+| Cron | Mondays 06:00 UTC |
+| Manual | Actions → **Refresh catalog** → Run workflow |
+| Push | changes to `scripts/build_catalog.py` |
+
+Workflow: [`.github/workflows/refresh-catalog.yml`](.github/workflows/refresh-catalog.yml)  
+It re-fetches DE Public Export + warframestat, validates counts, and commits `catalog.json` only if it changed. Inventory dumps stay local (never in CI).
 
 ## Data reliability
 

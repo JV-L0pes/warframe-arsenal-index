@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
-"""Build web/public/data/catalog.json (+ optional owned.json) from Public Export cache."""
+"""Build web/public/data/catalog.json (+ optional owned.json) from Public Export.
+
+Self-contained: can download Public Export + warframestat itself (for CI).
+"""
 
 from __future__ import annotations
 
+import argparse
 import json
+import lzma
+import os
 import re
 import sys
+import urllib.request
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -14,7 +22,15 @@ CACHE = ROOT / "data" / "cache"
 OUT = ROOT.parent / "web" / "public" / "data"
 INV = ROOT / "data" / "inventory_raw.json"
 WFSTAT_WEAPONS = "https://api.warframestat.us/weapons"
+MANIFEST_INDEX = "https://content.warframe.com/PublicExport/index_en.txt.lzma"
 STALE_NOTE = "weapon subtypes prefer warframestat.us type by uniqueName"
+UA = {"User-Agent": "warframe-arsenal-index/1.0 (+https://github.com/JV-L0pes/warframe-arsenal-index)"}
+
+EXPORT_FILES = (
+    "ExportUpgrades_en.json",
+    "ExportWeapons_en.json",
+    "ExportWarframes_en.json",
+)
 
 MOD_MAP = {
     "WARFRAME": "warframe",
@@ -129,22 +145,53 @@ def should_skip_mod(un: str) -> bool:
     return False
 
 
-def load_warframestat_weapon_types() -> dict[str, str]:
+def http_get(url: str) -> bytes:
+    req = urllib.request.Request(url, headers=UA)
+    with urllib.request.urlopen(req, timeout=180) as resp:
+        return resp.read()
+
+
+def ensure_public_export(*, refresh: bool) -> None:
+    """Download DE Public Export manifests into CACHE if missing (or always if refresh)."""
+    CACHE.mkdir(parents=True, exist_ok=True)
+    needed = [CACHE / name for name in EXPORT_FILES]
+    if not refresh and all(p.exists() for p in needed):
+        return
+
+    print("fetching Public Export index…", file=sys.stderr)
+    index_text = lzma.decompress(http_get(MANIFEST_INDEX)).decode("utf-8", errors="replace")
+    (CACHE / "index_en.txt").write_text(index_text, encoding="utf-8")
+
+    urls: dict[str, str] = {}
+    for line in index_text.splitlines():
+        line = line.strip()
+        if not line or "!" not in line:
+            continue
+        name = line.split("!", 1)[0]
+        urls[name] = f"https://content.warframe.com/PublicExport/Manifest/{line}"
+
+    for name in EXPORT_FILES:
+        url = urls.get(name)
+        if not url:
+            raise RuntimeError(f"manifest missing {name}")
+        print(f"  downloading {name}…", file=sys.stderr)
+        raw = http_get(url)
+        text = raw.decode("utf-8-sig", errors="replace")
+        # validate JSON
+        json.loads(text)
+        (CACHE / name).write_text(text, encoding="utf-8")
+
+
+def load_warframestat_weapon_types(*, refresh: bool) -> dict[str, str]:
     """uniqueName → normalized subtype (rifle, shotgun, …)."""
     CACHE.mkdir(parents=True, exist_ok=True)
     cache_path = CACHE / "warframestat_weapons.json"
-    if cache_path.exists():
-        data = json.loads(cache_path.read_text(encoding="utf-8"))
-    else:
-        import urllib.request
-
-        req = urllib.request.Request(
-            WFSTAT_WEAPONS,
-            headers={"User-Agent": "warframe-arsenal-index/1.0"},
-        )
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+    if refresh or not cache_path.exists():
+        print("fetching warframestat weapons…", file=sys.stderr)
+        data = json.loads(http_get(WFSTAT_WEAPONS).decode("utf-8"))
         cache_path.write_text(json.dumps(data), encoding="utf-8")
+    else:
+        data = json.loads(cache_path.read_text(encoding="utf-8"))
 
     mapping: dict[str, str] = {}
     if not isinstance(data, list):
@@ -180,7 +227,6 @@ def load_warframestat_weapon_types() -> dict[str, str]:
         wtype = str(w.get("type") or "").strip().lower()
         if not un or not wtype:
             continue
-        # direct map or contains
         sub = type_map.get(wtype)
         if not sub:
             for needle, val in type_map.items():
@@ -220,9 +266,21 @@ def heuristic_subtype(slot: str, name: str, unique_name: str) -> str:
 
 
 def main() -> int:
-    if not (CACHE / "ExportUpgrades_en.json").exists():
-        print("missing cache — run: python3 categorize.py", file=sys.stderr)
-        return 1
+    ap = argparse.ArgumentParser(description="Build Arsenal Index catalog.json")
+    ap.add_argument(
+        "--refresh",
+        action="store_true",
+        help="re-download Public Export + warframestat (default in CI)",
+    )
+    ap.add_argument(
+        "--skip-owned",
+        action="store_true",
+        help="do not write owned.json even if inventory_raw.json exists",
+    )
+    args = ap.parse_args()
+    refresh = args.refresh or os.environ.get("CI") == "true"
+
+    ensure_public_export(refresh=refresh)
 
     ups = json.loads((CACHE / "ExportUpgrades_en.json").read_text())["ExportUpgrades"]
     mods = []
@@ -247,7 +305,7 @@ def main() -> int:
 
     weapons = json.loads((CACHE / "ExportWeapons_en.json").read_text())["ExportWeapons"]
     print("loading warframestat weapon types…", file=sys.stderr)
-    wf_types = load_warframestat_weapon_types()
+    wf_types = load_warframestat_weapon_types(refresh=refresh)
     print(f"  warframestat mapped: {len(wf_types)}", file=sys.stderr)
     source_counts: Counter[str] = Counter()
     wout = []
@@ -300,10 +358,8 @@ def main() -> int:
     ]
 
     catalog = {
-        "generatedFrom": "Warframe Public Export",
-        "generatedAt": __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc
-        ).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generatedFrom": "Warframe Public Export + warframestat.us",
+        "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "filters": [
             "skip Riven/RandomMod",
             "skip PvPMods",
@@ -330,10 +386,11 @@ def main() -> int:
 
     print("weapon subtype sources", dict(source_counts), file=sys.stderr)
 
+    if args.skip_owned:
+        return 0
+
     if INV.exists():
         inv = json.loads(INV.read_text())
-        from datetime import datetime, timezone
-
         synced_at = datetime.fromtimestamp(
             INV.stat().st_mtime, tz=timezone.utc
         ).strftime("%Y-%m-%dT%H:%M:%SZ")

@@ -1,0 +1,65 @@
+name: Refresh catalog
+
+on:
+  schedule:
+    # Mondays 06:00 UTC — catch weekend patches
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/build_catalog.py"
+      - ".github/workflows/refresh-catalog.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-catalog
+  cancel-in-progress: true
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Rebuild catalog
+        env:
+          CI: "true"
+        run: python3 scripts/build_catalog.py --refresh --skip-owned
+
+      - name: Validate catalog
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          from pathlib import Path
+          p = Path("web/public/data/catalog.json")
+          data = json.loads(p.read_text())
+          for key in ("mods", "weapons", "warframes", "generatedAt", "counts"):
+              if key not in data:
+                  sys.exit(f"missing key: {key}")
+          assert data["counts"]["mods"] == len(data["mods"])
+          assert data["counts"]["weapons"] == len(data["weapons"])
+          assert data["counts"]["warframes"] == len(data["warframes"])
+          assert data["counts"]["mods"] > 500
+          print("ok", data["counts"], "at", data["generatedAt"])
+          print("subtype sources", data.get("weaponSubtypeSources"))
+          PY
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/public/data/catalog.json
+          if git diff --staged --quiet; then
+            echo "catalog unchanged"
+          else
+            git commit -m "chore: refresh Warframe catalog from Public Export"
+            git push
+          fi
