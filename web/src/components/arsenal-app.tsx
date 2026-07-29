@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   buildCategorizedLists,
+  enrichOwnedSnapshot,
   formatSyncedAt,
   isInventoryStale,
   OWNED_STORAGE_KEY,
@@ -49,7 +50,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
       if (!raw) return;
       const parsed = JSON.parse(raw) as unknown;
       const result = parseInventoryFile(parsed);
-      if (result.ok) setOwned(result.owned);
+      if (result.ok) setOwned(enrichOwnedSnapshot(result.owned));
     } catch {
       /* ignore */
     }
@@ -69,14 +70,22 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     return m;
   }, [owned]);
 
-  const ownedWeaponSet = useMemo(
-    () => new Set((owned?.weapons ?? []).map((w) => w.uniqueName)),
-    [owned],
-  );
-  const ownedFrameSet = useMemo(
-    () => new Set((owned?.warframes ?? []).map((f) => f.uniqueName)),
-    [owned],
-  );
+  const ownedWeaponMap = useMemo(() => {
+    const m = new Map<
+      string,
+      NonNullable<OwnedSnapshot["weapons"]>[number]
+    >();
+    for (const w of owned?.weapons ?? []) m.set(w.uniqueName, w);
+    return m;
+  }, [owned]);
+  const ownedFrameMap = useMemo(() => {
+    const m = new Map<
+      string,
+      NonNullable<OwnedSnapshot["warframes"]>[number]
+    >();
+    for (const f of owned?.warframes ?? []) m.set(f.uniqueName, f);
+    return m;
+  }, [owned]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, { total: number; owned: number }> = {};
@@ -115,24 +124,24 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     const q = query.trim().toLowerCase();
     return catalog.weapons.filter((w) => {
       if (w.slot !== weaponSlot) return false;
-      const isOwned = ownedWeaponSet.has(w.uniqueName);
+      const isOwned = ownedWeaponMap.has(w.uniqueName);
       if (filter === "owned" && !isOwned) return false;
       if (filter === "missing" && isOwned) return false;
       if (!q) return true;
       return w.name.toLowerCase().includes(q) || w.subtype.includes(q);
     });
-  }, [catalog.weapons, filter, ownedWeaponSet, query, weaponSlot]);
+  }, [catalog.weapons, filter, ownedWeaponMap, query, weaponSlot]);
 
   const filteredFrames = useMemo(() => {
     const q = query.trim().toLowerCase();
     return catalog.warframes.filter((f) => {
-      const isOwned = ownedFrameSet.has(f.uniqueName);
+      const isOwned = ownedFrameMap.has(f.uniqueName);
       if (filter === "owned" && !isOwned) return false;
       if (filter === "missing" && isOwned) return false;
       if (!q) return true;
       return f.name.toLowerCase().includes(q);
     });
-  }, [catalog.warframes, filter, ownedFrameSet, query]);
+  }, [catalog.warframes, filter, ownedFrameMap, query]);
 
   const progress = useMemo(() => {
     if (section === "mods") {
@@ -141,11 +150,11 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     }
     if (section === "weapons") {
       const list = catalog.weapons.filter((w) => w.slot === weaponSlot);
-      const ownedN = list.filter((w) => ownedWeaponSet.has(w.uniqueName)).length;
+      const ownedN = list.filter((w) => ownedWeaponMap.has(w.uniqueName)).length;
       return { total: list.length, owned: ownedN };
     }
     const ownedN = catalog.warframes.filter((f) =>
-      ownedFrameSet.has(f.uniqueName),
+      ownedFrameMap.has(f.uniqueName),
     ).length;
     return { total: catalog.warframes.length, owned: ownedN };
   }, [
@@ -155,8 +164,8 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     catalog.weapons,
     catalog.warframes,
     weaponSlot,
-    ownedWeaponSet,
-    ownedFrameSet,
+    ownedWeaponMap,
+    ownedFrameMap,
   ]);
 
   const pct =
@@ -544,7 +553,8 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
               {section === "weapons" && (
                 <ul className="divide-y divide-border">
                   {filteredWeapons.map((w) => {
-                    const isOwned = ownedWeaponSet.has(w.uniqueName);
+                    const o = ownedWeaponMap.get(w.uniqueName);
+                    const isOwned = Boolean(o);
                     return (
                       <li
                         key={w.uniqueName}
@@ -568,9 +578,27 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                             {w.name}
                           </span>
                         </div>
-                        <span className="font-mono text-[11px] text-muted-foreground capitalize">
-                          {w.subtype}
-                        </span>
+                        <div className="flex shrink-0 items-center gap-2 font-mono text-[11px] text-muted-foreground">
+                          {o && (
+                            <>
+                              <span className="tabular-nums">r{o.rank ?? 0}</span>
+                              {(o.polarized ?? 0) > 0 && (
+                                <span title="Forma applied">★{o.polarized}</span>
+                              )}
+                              {o.masteryDone ? (
+                                <span
+                                  className="text-foreground/80"
+                                  title="Ranks 1–30 mastery already claimed — releveling won't give more MR XP"
+                                >
+                                  mastery done
+                                </span>
+                              ) : (
+                                <span title="Still earns Mastery Rank XP">MR open</span>
+                              )}
+                            </>
+                          )}
+                          <span className="capitalize opacity-70">{w.subtype}</span>
+                        </div>
                       </li>
                     );
                   })}
@@ -580,28 +608,49 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
               {section === "warframes" && (
                 <ul className="divide-y divide-border">
                   {filteredFrames.map((f) => {
-                    const isOwned = ownedFrameSet.has(f.uniqueName);
+                    const o = ownedFrameMap.get(f.uniqueName);
+                    const isOwned = Boolean(o);
                     return (
                       <li
                         key={f.uniqueName}
-                        className="flex items-center gap-2 px-2 py-2.5"
+                        className="flex items-center justify-between gap-3 px-2 py-2.5"
                       >
-                        <span
-                          className={cn(
-                            "size-1.5 shrink-0 rounded-full",
-                            isOwned ? "bg-foreground" : "bg-border",
-                          )}
-                        />
-                        <span
-                          className={cn(
-                            "text-sm",
-                            isOwned
-                              ? "text-foreground"
-                              : "text-muted-foreground",
-                          )}
-                        >
-                          {f.name}
-                        </span>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            className={cn(
+                              "size-1.5 shrink-0 rounded-full",
+                              isOwned ? "bg-foreground" : "bg-border",
+                            )}
+                          />
+                          <span
+                            className={cn(
+                              "truncate text-sm",
+                              isOwned
+                                ? "text-foreground"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            {f.name}
+                          </span>
+                        </div>
+                        {o && (
+                          <div className="flex shrink-0 items-center gap-2 font-mono text-[11px] text-muted-foreground">
+                            <span className="tabular-nums">r{o.rank ?? 0}</span>
+                            {(o.polarized ?? 0) > 0 && (
+                              <span title="Forma applied">★{o.polarized}</span>
+                            )}
+                            {o.masteryDone ? (
+                              <span
+                                className="text-foreground/80"
+                                title="Ranks 1–30 mastery already claimed — releveling won't give more MR XP"
+                              >
+                                mastery done
+                              </span>
+                            ) : (
+                              <span title="Still earns Mastery Rank XP">MR open</span>
+                            )}
+                          </div>
+                        )}
                       </li>
                     );
                   })}

@@ -75,11 +75,19 @@ export type OwnedWeapon = {
   uniqueName: string;
   slot: string;
   xp?: number;
+  rank?: number;
+  /** Forma applications — each resets to rank 0 */
+  polarized?: number;
+  /** Ranks 1–30 mastery already claimed (no more MR from releveling those ranks) */
+  masteryDone?: boolean;
 };
 
 export type OwnedWarframe = {
   uniqueName: string;
   xp?: number;
+  rank?: number;
+  polarized?: number;
+  masteryDone?: boolean;
 };
 
 export type OwnedSnapshot = {

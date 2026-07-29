@@ -1,6 +1,6 @@
 import { ArsenalApp } from "@/components/arsenal-app";
 import type { Catalog, OwnedSnapshot } from "@/lib/types";
-import { isOwnedSnapshot } from "@/lib/inventory";
+import { enrichOwnedSnapshot, isOwnedSnapshot } from "@/lib/inventory";
 import { readFile } from "fs/promises";
 import path from "path";
 
@@ -18,7 +18,7 @@ export default async function Home() {
   const catalog = (await loadJson<Catalog>(path.join(dataDir, "catalog.json")))!;
   const ownedRaw = await loadJson<unknown>(path.join(dataDir, "owned.json"));
   const initialOwned: OwnedSnapshot | null = isOwnedSnapshot(ownedRaw)
-    ? ownedRaw
+    ? enrichOwnedSnapshot(ownedRaw)
     : null;
 
   return <ArsenalApp catalog={catalog} initialOwned={initialOwned} />;

@@ -1,4 +1,30 @@
 import type { Catalog, OwnedSnapshot } from "@/lib/types";
+import {
+  isBaseMasteryDone,
+  rankFromXp,
+  type AffinityKind,
+} from "@/lib/affinity";
+
+function readPolarized(e: Record<string, unknown>): number {
+  const p = e.Polarized;
+  if (typeof p === "number" && p > 0) return p;
+  return 0;
+}
+
+function equipmentProgress(
+  e: Record<string, unknown>,
+  kind: AffinityKind,
+): { xp?: number; rank: number; polarized: number; masteryDone: boolean } {
+  const xp = typeof e.XP === "number" ? e.XP : undefined;
+  const polarized = readPolarized(e);
+  const rank = rankFromXp(kind, xp);
+  return {
+    xp,
+    rank,
+    polarized,
+    masteryDone: isBaseMasteryDone({ polarized, rank }),
+  };
+}
 
 /** Parse inventory.php-style raw dump into a compact owned snapshot. */
 export function parseRawInventory(
@@ -60,10 +86,11 @@ export function parseRawInventory(
       if (!entry || typeof entry !== "object") continue;
       const e = entry as Record<string, unknown>;
       if (typeof e.ItemType !== "string") continue;
+      const prog = equipmentProgress(e, "weapon");
       weapons.push({
         uniqueName: e.ItemType,
         slot,
-        xp: typeof e.XP === "number" ? e.XP : undefined,
+        ...prog,
       });
     }
   }
@@ -75,9 +102,10 @@ export function parseRawInventory(
       if (!entry || typeof entry !== "object") continue;
       const e = entry as Record<string, unknown>;
       if (typeof e.ItemType !== "string") continue;
+      const prog = equipmentProgress(e, "warframe");
       warframes.push({
         uniqueName: e.ItemType,
-        xp: typeof e.XP === "number" ? e.XP : undefined,
+        ...prog,
       });
     }
   }
@@ -102,6 +130,33 @@ export function isOwnedSnapshot(value: unknown): value is OwnedSnapshot {
   );
 }
 
+/** Fill rank / masteryDone from xp + polarized when missing (older snapshots). */
+export function enrichOwnedSnapshot(owned: OwnedSnapshot): OwnedSnapshot {
+  return {
+    ...owned,
+    weapons: owned.weapons.map((w) => {
+      const polarized = w.polarized ?? 0;
+      const rank = w.rank ?? rankFromXp("weapon", w.xp);
+      return {
+        ...w,
+        polarized,
+        rank,
+        masteryDone: w.masteryDone ?? isBaseMasteryDone({ polarized, rank }),
+      };
+    }),
+    warframes: owned.warframes.map((f) => {
+      const polarized = f.polarized ?? 0;
+      const rank = f.rank ?? rankFromXp("warframe", f.xp);
+      return {
+        ...f,
+        polarized,
+        rank,
+        masteryDone: f.masteryDone ?? isBaseMasteryDone({ polarized, rank }),
+      };
+    }),
+  };
+}
+
 export function parseInventoryFile(
   data: unknown,
   account?: string,
@@ -114,11 +169,11 @@ export function parseInventoryFile(
     const owned = data as OwnedSnapshot;
     return {
       ok: true,
-      owned: {
+      owned: enrichOwnedSnapshot({
         ...owned,
         syncedAt: owned.syncedAt ?? meta?.syncedAt,
         source: owned.source ?? meta?.source ?? "import",
-      },
+      }),
     };
   }
   const inv = data as Record<string, unknown>;
