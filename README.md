@@ -52,17 +52,35 @@ In the UI: **Import JSON** → `scripts/data/inventory_raw.json`
 
 ### Export lists
 
-**Export lists** / **Copy JSON**:
+**Export lists** / **Copy JSON** — owned items with status:
 
 ```json
 {
-  "mods_rifle": ["Serration r10", "Split Chamber r5"],
-  "mods_shotgun": ["Point Blank r10"],
-  "warframes": ["Saryn Prime", "Mesa Prime"],
-  "primary_bow": ["Nataruk"]
+  "mods_rifle": [
+    { "name": "Serration", "rank": 10 }
+  ],
+  "primary_bow": [
+    {
+      "name": "Nataruk",
+      "rank": 30,
+      "polarized": 2,
+      "masteryDone": true,
+      "mastery": "done"
+    }
+  ],
+  "warframes": [
+    {
+      "name": "Saryn Prime",
+      "rank": 9,
+      "polarized": 3,
+      "masteryDone": true,
+      "mastery": "done"
+    }
+  ]
 }
 ```
 
+`polarized` = Forma count. `mastery: "done"` = ranks 1–30 MR already claimed (Forma ≥ 1 or rank 30).
 ## Rebuild catalog
 
 ```bash

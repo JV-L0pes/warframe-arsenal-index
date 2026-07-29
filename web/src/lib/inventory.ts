@@ -228,43 +228,77 @@ export function formatSyncedAt(owned: OwnedSnapshot | null): string {
 export const DISCLAIMER_KEY = "arsenal-index:disclaimer-accepted";
 export const OWNED_STORAGE_KEY = "arsenal-index:owned";
 
+export type ExportEntry = {
+  name: string;
+  rank?: number | null;
+  count?: number;
+  /** Forma count */
+  polarized?: number;
+  /** Base MR (ranks 1–30) already claimed */
+  masteryDone?: boolean;
+  /** Human label: "mastery done" | "MR open" */
+  mastery?: "done" | "open";
+};
+
 export function buildCategorizedLists(
   catalog: Catalog,
   owned: OwnedSnapshot | null,
-): Record<string, string[]> {
+): Record<string, ExportEntry[]> {
   const ownedMods = new Map(
     (owned?.mods ?? []).map((m) => [m.uniqueName, m] as const),
   );
-  const lists: Record<string, string[]> = {};
+  const lists: Record<string, ExportEntry[]> = {};
 
   for (const mod of catalog.mods) {
     const o = ownedMods.get(mod.uniqueName);
     if (!o) continue;
     const key = `mods_${mod.category}`;
     if (!lists[key]) lists[key] = [];
-    let label = mod.name;
-    if (o.rank !== null) label += ` r${o.rank}`;
-    if (o.count > 1) label += ` x${o.count}`;
-    lists[key].push(label);
+    lists[key].push({
+      name: mod.name,
+      rank: o.rank,
+      count: o.count > 1 ? o.count : undefined,
+    });
   }
 
-  const ownedWeapons = new Set((owned?.weapons ?? []).map((w) => w.uniqueName));
+  const ownedWeapons = new Map(
+    (owned?.weapons ?? []).map((w) => [w.uniqueName, w] as const),
+  );
   for (const w of catalog.weapons) {
-    if (!ownedWeapons.has(w.uniqueName)) continue;
+    const o = ownedWeapons.get(w.uniqueName);
+    if (!o) continue;
     const key = `${w.slot}_${w.subtype}`;
     if (!lists[key]) lists[key] = [];
-    lists[key].push(w.name);
+    const masteryDone = Boolean(o.masteryDone);
+    lists[key].push({
+      name: w.name,
+      rank: o.rank ?? null,
+      polarized: o.polarized ?? 0,
+      masteryDone,
+      mastery: masteryDone ? "done" : "open",
+    });
   }
 
-  const ownedFrames = new Set(
-    (owned?.warframes ?? []).map((f) => f.uniqueName),
+  const ownedFrames = new Map(
+    (owned?.warframes ?? []).map((f) => [f.uniqueName, f] as const),
   );
-  lists.warframes = catalog.warframes
-    .filter((f) => ownedFrames.has(f.uniqueName))
-    .map((f) => f.name);
+  lists.warframes = [];
+  for (const f of catalog.warframes) {
+    const o = ownedFrames.get(f.uniqueName);
+    if (!o) continue;
+    const masteryDone = Boolean(o.masteryDone);
+    lists.warframes.push({
+      name: f.name,
+      rank: o.rank ?? null,
+      polarized: o.polarized ?? 0,
+      masteryDone,
+      mastery: masteryDone ? "done" : "open",
+    });
+  }
 
   for (const key of Object.keys(lists)) {
-    lists[key].sort((a, b) => a.localeCompare(b));
+    lists[key].sort((a, b) => a.name.localeCompare(b.name));
   }
   return lists;
 }
+
