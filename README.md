@@ -71,7 +71,7 @@ python3 categorize.py          # refresh Public Export cache
 python3 build_catalog.py       # writes web/public/data/catalog.json
 ```
 
-Catalog embeds `generatedAt`, source, and applied filters (skips PvP / Beginner / Expert / Rivens).
+Catalog embeds `generatedAt`, source, and applied filters (skips PvP / Beginner / Expert / Rivens). Weapon subtypes prefer [warframestat.us](https://warframestat.us) `type` matched by `uniqueName`, with Export/heuristics as fallback.
 
 ## Data reliability
 
@@ -79,18 +79,19 @@ Catalog embeds `generatedAt`, source, and applied filters (skips PvP / Beginner 
 |--------|-------|-------|
 | `uniqueName` match | High | Stable DE item IDs — ownership is keyed on these, not display names |
 | Public Export names | High | Official DE dump; rebuild after major patches |
-| Inventory dump | High *if fresh* | Snapshot from mobile API at fetch time — re-run after farming |
-| Weapon subtypes (rifle/shotgun/…) | Medium | Heuristics on path/name when Export lacks subtype |
-| Augment flag | Medium | Inferred from `compatName` / type |
+| Weapon subtype (WFCD) | High | warframestat `type` (Rifle / Shotgun / Bow / …) |
+| Inventory dump | High *if fresh* | Snapshot at fetch/import — UI marks **stale** after 7 days |
+| Heuristic subtype leftover | Low | Only when WFCD has no `uniqueName` |
 
 **Guarantees we keep:**
 
 - Personal dumps stay local (gitignored)
 - Import validates shape before applying
-- Catalog timestamp shown in the UI footer
+- Catalog timestamp + inventory sync age in the UI
+- First-run disclaimer for memory/token fetch risk
 - No cloud sync of inventory
 
-**Not guaranteed:** DE schema changes, ToS of memory/token fetch, 100% subtype accuracy for exotic weapons.
+**Not guaranteed:** DE schema changes, ToS of memory/token fetch, 100% coverage when WFCD lags a patch.
 
 ## Layout
 

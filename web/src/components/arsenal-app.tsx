@@ -10,8 +10,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   buildCategorizedLists,
+  formatSyncedAt,
+  isInventoryStale,
   OWNED_STORAGE_KEY,
   parseInventoryFile,
+  STALE_AFTER_DAYS,
 } from "@/lib/inventory";
 import {
   MOD_CATEGORY_META,
@@ -22,6 +25,8 @@ import {
   type Section,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { DisclaimerDialog } from "@/components/disclaimer-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type Props = {
   catalog: Catalog;
@@ -165,7 +170,10 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     } catch {
       throw new Error("File is not valid JSON.");
     }
-    const result = parseInventoryFile(data);
+    const result = parseInventoryFile(data, undefined, {
+      syncedAt: new Date(file.lastModified).toISOString(),
+      source: "import",
+    });
     if (!result.ok) throw new Error(result.error);
     persistOwned(result.owned);
   }
@@ -201,8 +209,12 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     return [...map.entries()];
   }, [categoryCounts]);
 
+  const stale = isInventoryStale(owned);
+  const syncLabel = formatSyncedAt(owned);
+
   return (
     <div className="flex min-h-screen flex-col">
+      <DisclaimerDialog />
       <header className="border-b border-border">
         <div className="mx-auto flex w-full max-w-[1400px] items-end justify-between gap-6 px-6 py-8">
           <div>
@@ -217,19 +229,32 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
               to mark ownership, then export categorized lists.
             </p>
           </div>
-          <div className="hidden items-center gap-2 sm:flex">
-            {owned?.account ? (
-              <Badge variant="outline" className="font-mono text-[11px]">
-                {owned.account}
+          <div className="hidden flex-col items-end gap-2 sm:flex">
+            <div className="flex items-center gap-2">
+              {owned?.account ? (
+                <Badge variant="outline" className="font-mono text-[11px]">
+                  {owned.account}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="font-mono text-[11px]">
+                  no inventory
+                </Badge>
+              )}
+              <Badge variant="secondary" className="font-mono text-[11px]">
+                {catalog.mods.length} mods
               </Badge>
-            ) : (
-              <Badge variant="outline" className="font-mono text-[11px]">
-                no inventory
+            </div>
+            {owned && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "font-mono text-[11px]",
+                  stale && "border-foreground/40 text-foreground",
+                )}
+              >
+                {stale ? `stale · ${syncLabel}` : `synced ${syncLabel}`}
               </Badge>
             )}
-            <Badge variant="secondary" className="font-mono text-[11px]">
-              {catalog.mods.length} mods
-            </Badge>
           </div>
         </div>
       </header>
@@ -326,6 +351,22 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
         </aside>
 
         <main className="flex min-w-0 flex-1 flex-col">
+          {stale && owned && (
+            <div className="border-b border-border px-4 py-3 md:px-6">
+              <Alert className="border-border bg-muted/30">
+                <AlertTitle className="font-mono text-xs tracking-wide uppercase">
+                  Inventory older than {STALE_AFTER_DAYS} days
+                </AlertTitle>
+                <AlertDescription className="text-xs text-muted-foreground">
+                  Last sync {syncLabel}. Re-run{" "}
+                  <code className="font-mono text-foreground/80">
+                    python3 scripts/export.py
+                  </code>{" "}
+                  with Warframe open, then Import JSON.
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
           <div className="border-b border-border px-4 py-4 md:px-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0 flex-1 space-y-2">

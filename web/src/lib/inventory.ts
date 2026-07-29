@@ -4,6 +4,7 @@ import type { Catalog, OwnedSnapshot } from "@/lib/types";
 export function parseRawInventory(
   inv: Record<string, unknown>,
   account?: string,
+  meta?: { syncedAt?: string; source?: string },
 ): OwnedSnapshot {
   const mods = new Map<
     string,
@@ -83,6 +84,8 @@ export function parseRawInventory(
 
   return {
     account,
+    syncedAt: meta?.syncedAt ?? new Date().toISOString(),
+    source: meta?.source ?? "import",
     mods: [...mods.values()],
     weapons,
     warframes,
@@ -102,12 +105,21 @@ export function isOwnedSnapshot(value: unknown): value is OwnedSnapshot {
 export function parseInventoryFile(
   data: unknown,
   account?: string,
+  meta?: { syncedAt?: string; source?: string },
 ): { ok: true; owned: OwnedSnapshot } | { ok: false; error: string } {
   if (!data || typeof data !== "object") {
     return { ok: false, error: "JSON root must be an object." };
   }
   if (isOwnedSnapshot(data)) {
-    return { ok: true, owned: data };
+    const owned = data as OwnedSnapshot;
+    return {
+      ok: true,
+      owned: {
+        ...owned,
+        syncedAt: owned.syncedAt ?? meta?.syncedAt,
+        source: owned.source ?? meta?.source ?? "import",
+      },
+    };
   }
   const inv = data as Record<string, unknown>;
   // inventory.php dumps always expose at least one of these
@@ -119,8 +131,47 @@ export function parseInventoryFile(
         "Unrecognized file. Expected inventory_raw.json (mobile API) or owned.json.",
     };
   }
-  return { ok: true, owned: parseRawInventory(inv, account) };
+  return {
+    ok: true,
+    owned: parseRawInventory(inv, account, {
+      syncedAt: meta?.syncedAt ?? new Date().toISOString(),
+      source: meta?.source ?? "mobile-api",
+    }),
+  };
 }
+
+/** Days after which inventory is considered stale. */
+export const STALE_AFTER_DAYS = 7;
+
+export function inventoryAgeMs(owned: OwnedSnapshot | null): number | null {
+  if (!owned?.syncedAt) return null;
+  const t = Date.parse(owned.syncedAt);
+  if (Number.isNaN(t)) return null;
+  return Date.now() - t;
+}
+
+export function isInventoryStale(owned: OwnedSnapshot | null): boolean {
+  const age = inventoryAgeMs(owned);
+  if (age === null) return Boolean(owned); // present but unknown age → treat cautiously
+  return age > STALE_AFTER_DAYS * 24 * 60 * 60 * 1000;
+}
+
+export function formatSyncedAt(owned: OwnedSnapshot | null): string {
+  if (!owned?.syncedAt) return owned ? "sync time unknown" : "no inventory";
+  const t = Date.parse(owned.syncedAt);
+  if (Number.isNaN(t)) return "sync time unknown";
+  const age = Date.now() - t;
+  const mins = Math.floor(age / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 48) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+export const DISCLAIMER_KEY = "arsenal-index:disclaimer-accepted";
+export const OWNED_STORAGE_KEY = "arsenal-index:owned";
 
 export function buildCategorizedLists(
   catalog: Catalog,
@@ -162,5 +213,3 @@ export function buildCategorizedLists(
   }
   return lists;
 }
-
-export const OWNED_STORAGE_KEY = "arsenal-index:owned";

@@ -41,6 +41,8 @@ export type CatalogWeapon = {
   name: string;
   slot: string;
   subtype: string;
+  /** how subtype was resolved */
+  subtypeSource?: "warframestat" | "export" | "heuristic";
 };
 
 export type CatalogWarframe = {
@@ -82,6 +84,10 @@ export type OwnedWarframe = {
 
 export type OwnedSnapshot = {
   account?: string;
+  /** ISO timestamp when this dump was fetched/imported */
+  syncedAt?: string;
+  /** e.g. mobile-api | import | example */
+  source?: string;
   mods: OwnedMod[];
   weapons: OwnedWeapon[];
   warframes: OwnedWarframe[];

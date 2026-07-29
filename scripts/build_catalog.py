@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parent
 CACHE = ROOT / "data" / "cache"
 OUT = ROOT.parent / "web" / "public" / "data"
 INV = ROOT / "data" / "inventory_raw.json"
+WFSTAT_WEAPONS = "https://api.warframestat.us/weapons"
+STALE_NOTE = "weapon subtypes prefer warframestat.us type by uniqueName"
 
 MOD_MAP = {
     "WARFRAME": "warframe",
@@ -127,6 +129,96 @@ def should_skip_mod(un: str) -> bool:
     return False
 
 
+def load_warframestat_weapon_types() -> dict[str, str]:
+    """uniqueName → normalized subtype (rifle, shotgun, …)."""
+    CACHE.mkdir(parents=True, exist_ok=True)
+    cache_path = CACHE / "warframestat_weapons.json"
+    if cache_path.exists():
+        data = json.loads(cache_path.read_text(encoding="utf-8"))
+    else:
+        import urllib.request
+
+        req = urllib.request.Request(
+            WFSTAT_WEAPONS,
+            headers={"User-Agent": "warframe-arsenal-index/1.0"},
+        )
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        cache_path.write_text(json.dumps(data), encoding="utf-8")
+
+    mapping: dict[str, str] = {}
+    if not isinstance(data, list):
+        return mapping
+
+    type_map = {
+        "rifle": "rifle",
+        "assault rifle": "rifle",
+        "shotgun": "shotgun",
+        "sniper rifle": "sniper",
+        "sniper": "sniper",
+        "bow": "bow",
+        "pistol": "pistol",
+        "dual pistols": "pistol",
+        "thrown": "pistol",
+        "melee": "melee",
+        "blade and whip": "melee",
+        "sword": "melee",
+        "nikana": "melee",
+        "spear": "speargun",
+        "speargun": "speargun",
+        "launcher": "launcher",
+        "archgun": "archgun",
+        "archmelee": "archmelee",
+        "amp": "amp",
+        "exalted weapon": "exalted",
+    }
+
+    for w in data:
+        if not isinstance(w, dict):
+            continue
+        un = w.get("uniqueName")
+        wtype = str(w.get("type") or "").strip().lower()
+        if not un or not wtype:
+            continue
+        # direct map or contains
+        sub = type_map.get(wtype)
+        if not sub:
+            for needle, val in type_map.items():
+                if needle in wtype:
+                    sub = val
+                    break
+        if sub:
+            mapping[un] = sub
+    return mapping
+
+
+def heuristic_subtype(slot: str, name: str, unique_name: str) -> str:
+    blob = f"{name} {unique_name}"
+    if slot == "primary":
+        if re.search(
+            r"Shotgun|Hek|Tigris|Strun|Boar|Corinth|Cedo|Drakgoon|FlakCannon|Convectrix",
+            blob,
+            re.I,
+        ):
+            return "shotgun"
+        if re.search(r"Sniper|Vectis|Rubico|Lanka|Vulkar", blob, re.I):
+            return "sniper"
+        if re.search(r"/Bows?/|Nataruk|Paris|Cernos|Dread|Lenz", blob, re.I):
+            return "bow"
+        if re.search(r"Spear|Javlok|Scourge|Ferrox|Afentis", blob, re.I):
+            return "speargun"
+        if re.search(r"Launcher|Ogris|Torid|Penta|Zarr|Tonkor", blob, re.I):
+            return "launcher"
+        return "rifle"
+    if slot == "secondary":
+        if re.search(r"HandShotGun|Bronco|Pyrana|Kohmak|Detron", blob, re.I):
+            return "shotgun"
+        return "pistol"
+    if slot == "melee":
+        return "melee"
+    return "other"
+
+
 def main() -> int:
     if not (CACHE / "ExportUpgrades_en.json").exists():
         print("missing cache — run: python3 categorize.py", file=sys.stderr)
@@ -154,6 +246,10 @@ def main() -> int:
         )
 
     weapons = json.loads((CACHE / "ExportWeapons_en.json").read_text())["ExportWeapons"]
+    print("loading warframestat weapon types…", file=sys.stderr)
+    wf_types = load_warframestat_weapon_types()
+    print(f"  warframestat mapped: {len(wf_types)}", file=sys.stderr)
+    source_counts: Counter[str] = Counter()
     wout = []
     for w in weapons:
         pc = w.get("productCategory") or ""
@@ -165,35 +261,27 @@ def main() -> int:
             "SpaceMelee": "archmelee",
         }.get(pc, (pc or "other").lower())
         name = clean(w.get("name"))
-        blob = f"{name} {w.get('uniqueName', '')}"
-        sub = "other"
-        if slot == "primary":
-            if re.search(
-                r"Shotgun|Hek|Tigris|Strun|Boar|Corinth|Cedo|Drakgoon|FlakCannon|Convectrix",
-                blob,
-                re.I,
-            ):
-                sub = "shotgun"
-            elif re.search(r"Sniper|Vectis|Rubico|Lanka|Vulkar", blob, re.I):
-                sub = "sniper"
-            elif re.search(r"/Bows?/|Nataruk|Paris|Cernos|Dread|Lenz", blob, re.I):
-                sub = "bow"
-            else:
-                sub = "rifle"
-        elif slot == "secondary":
-            sub = (
-                "shotgun"
-                if re.search(r"HandShotGun|Bronco|Pyrana", blob, re.I)
-                else "pistol"
-            )
+        un = w["uniqueName"]
+        if un in wf_types:
+            sub = wf_types[un]
+            src = "warframestat"
+        elif slot == "archgun":
+            sub, src = "archgun", "export"
+        elif slot == "archmelee":
+            sub, src = "archmelee", "export"
         elif slot == "melee":
-            sub = "melee"
+            sub, src = "melee", "export"
+        else:
+            sub = heuristic_subtype(slot, name, un)
+            src = "heuristic"
+        source_counts[src] += 1
         wout.append(
             {
-                "uniqueName": w["uniqueName"],
+                "uniqueName": un,
                 "name": name,
                 "slot": slot,
                 "subtype": sub,
+                "subtypeSource": src,
             }
         )
 
@@ -220,7 +308,9 @@ def main() -> int:
             "skip Riven/RandomMod",
             "skip PvPMods",
             "skip Beginner/Expert variants",
+            STALE_NOTE,
         ],
+        "weaponSubtypeSources": dict(source_counts),
         "counts": {
             "mods": len(mods),
             "weapons": len(wout),
@@ -238,13 +328,22 @@ def main() -> int:
     )
     print("mod cats", Counter(m["category"] for m in catalog["mods"]).most_common(8))
 
+    print("weapon subtype sources", dict(source_counts), file=sys.stderr)
+
     if INV.exists():
         inv = json.loads(INV.read_text())
+        from datetime import datetime, timezone
+
+        synced_at = datetime.fromtimestamp(
+            INV.stat().st_mtime, tz=timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
         owned: dict = {
             "mods": {},
             "weapons": [],
             "warframes": [],
             "account": "B4uklotze",
+            "syncedAt": synced_at,
+            "source": "mobile-api",
         }
         for key in ("RawUpgrades", "Upgrades"):
             for e in inv.get(key) or []:
