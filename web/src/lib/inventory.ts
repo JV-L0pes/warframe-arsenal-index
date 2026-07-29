@@ -243,58 +243,67 @@ export type ExportEntry = {
 /** Mods are plain names; weapons/warframes keep status objects. */
 export type ExportPayload = Record<string, string[] | ExportEntry[]>;
 
+export type ExportScope = "all" | "mods" | "weapons" | "warframes";
+
 export function buildCategorizedLists(
   catalog: Catalog,
   owned: OwnedSnapshot | null,
+  scope: ExportScope = "all",
 ): ExportPayload {
   const ownedMods = new Map(
     (owned?.mods ?? []).map((m) => [m.uniqueName, m] as const),
   );
   const lists: ExportPayload = {};
 
-  for (const mod of catalog.mods) {
-    const o = ownedMods.get(mod.uniqueName);
-    if (!o) continue;
-    const key = `mods_${mod.category}`;
-    if (!lists[key]) lists[key] = [] as string[];
-    (lists[key] as string[]).push(mod.name);
+  if (scope === "all" || scope === "mods") {
+    for (const mod of catalog.mods) {
+      const o = ownedMods.get(mod.uniqueName);
+      if (!o) continue;
+      const key = `mods_${mod.category}`;
+      if (!lists[key]) lists[key] = [] as string[];
+      (lists[key] as string[]).push(mod.name);
+    }
   }
 
-  const ownedWeapons = new Map(
-    (owned?.weapons ?? []).map((w) => [w.uniqueName, w] as const),
-  );
-  for (const w of catalog.weapons) {
-    const o = ownedWeapons.get(w.uniqueName);
-    if (!o) continue;
-    const key = `${w.slot}_${w.subtype}`;
-    if (!lists[key]) lists[key] = [] as ExportEntry[];
-    const masteryDone = Boolean(o.masteryDone);
-    (lists[key] as ExportEntry[]).push({
-      name: w.name,
-      rank: o.rank ?? null,
-      polarized: o.polarized ?? 0,
-      masteryDone,
-      mastery: masteryDone ? "done" : "open",
-    });
+  if (scope === "all" || scope === "weapons") {
+    const ownedWeapons = new Map(
+      (owned?.weapons ?? []).map((w) => [w.uniqueName, w] as const),
+    );
+    for (const w of catalog.weapons) {
+      const o = ownedWeapons.get(w.uniqueName);
+      if (!o) continue;
+      const key = `${w.slot}_${w.subtype}`;
+      if (!lists[key]) lists[key] = [] as ExportEntry[];
+      const masteryDone = Boolean(o.masteryDone);
+      (lists[key] as ExportEntry[]).push({
+        name: w.name,
+        rank: o.rank ?? null,
+        polarized: o.polarized ?? 0,
+        masteryDone,
+        mastery: masteryDone ? "done" : "open",
+      });
+    }
   }
 
-  const ownedFrames = new Map(
-    (owned?.warframes ?? []).map((f) => [f.uniqueName, f] as const),
-  );
-  const frames: ExportEntry[] = [];
-  for (const f of catalog.warframes) {
-    const o = ownedFrames.get(f.uniqueName);
-    if (!o) continue;
-    const masteryDone = Boolean(o.masteryDone);
-    frames.push({
-      name: f.name,
-      rank: o.rank ?? null,
-      polarized: o.polarized ?? 0,
-      masteryDone,
-      mastery: masteryDone ? "done" : "open",
-    });
+  if (scope === "all" || scope === "warframes") {
+    const ownedFrames = new Map(
+      (owned?.warframes ?? []).map((f) => [f.uniqueName, f] as const),
+    );
+    const frames: ExportEntry[] = [];
+    for (const f of catalog.warframes) {
+      const o = ownedFrames.get(f.uniqueName);
+      if (!o) continue;
+      const masteryDone = Boolean(o.masteryDone);
+      frames.push({
+        name: f.name,
+        rank: o.rank ?? null,
+        polarized: o.polarized ?? 0,
+        masteryDone,
+        mastery: masteryDone ? "done" : "open",
+      });
+    }
+    if (frames.length) lists.warframes = frames;
   }
-  lists.warframes = frames;
 
   for (const key of Object.keys(lists)) {
     const list = lists[key];

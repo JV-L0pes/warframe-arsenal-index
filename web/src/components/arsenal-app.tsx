@@ -168,20 +168,20 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
   }
 
   function exportLists() {
-    const lists = buildCategorizedLists(catalog, owned);
+    const lists = buildCategorizedLists(catalog, owned, section);
     const blob = new Blob([JSON.stringify(lists, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "inventory_lists.json";
+    a.download = `inventory_${section}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
   async function copyLists() {
-    const lists = buildCategorizedLists(catalog, owned);
+    const lists = buildCategorizedLists(catalog, owned, section);
     await navigator.clipboard.writeText(JSON.stringify(lists, null, 2));
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
