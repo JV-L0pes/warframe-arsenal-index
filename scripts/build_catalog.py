@@ -307,7 +307,13 @@ def main() -> int:
     print(f"  warframestat mapped: {len(wf_types)}", file=sys.stderr)
     source_counts: Counter[str] = Counter()
     wout = []
+    seen_weapons: set[str] = set()
     for w in weapons:
+        un = w["uniqueName"]
+        # Public Export sometimes repeats the same uniqueName (e.g. Mausolon ×3).
+        if un in seen_weapons:
+            continue
+        seen_weapons.add(un)
         pc = w.get("productCategory") or ""
         slot = {
             "LongGuns": "primary",
@@ -317,7 +323,6 @@ def main() -> int:
             "SpaceMelee": "archmelee",
         }.get(pc, (pc or "other").lower())
         name = clean(w.get("name"))
-        un = w["uniqueName"]
         if un in wf_types:
             sub = wf_types[un]
             src = "warframestat"
