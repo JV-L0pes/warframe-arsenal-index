@@ -22,7 +22,7 @@ Cross-check the full Public Export catalog (mods, weapons, warframes) against **
 |-------|------|
 | UI | Next.js · shadcn/ui · Tailwind · IBM Plex |
 | Catalog | Warframe Public Export |
-| Inventory | Unofficial mobile API + memory token (Linux / Proton) |
+| Inventory | Unofficial mobile API + memory token (Linux / Windows) |
 
 ## Quick start
 
@@ -36,9 +36,18 @@ npm run dev
 
 Open http://localhost:3000
 
-### Fetch inventory (Linux)
+### Fetch inventory
 
 Warframe must be running and logged in.
+
+**Windows** (PowerShell / cmd — run as Administrator if OpenProcess fails):
+
+```powershell
+cd scripts
+python export.py
+```
+
+**Linux** (Proton / native):
 
 ```bash
 # if /proc/PID/mem is blocked:
@@ -82,9 +91,28 @@ Mods export as **name strings only**. Weapons/warframes keep rank · Forma · ma
 ## Rebuild catalog
 
 ```bash
-# downloads Public Export + warframestat, writes web/public/data/catalog.json
-python3 scripts/build_catalog.py --refresh
+# downloads Public Export + warframestat + WFCD arcanes, writes web/public/data/catalog.json
+# also refreshes overframe-items.csv (Overframe id→name map for import)
+python scripts/build_catalog.py --refresh
+# Linux: python3 scripts/build_catalog.py --refresh
 ```
+
+### Builds
+
+**Overframe (local dump)** — no public API; Cloudflare blocks server scrapes.
+
+```powershell
+cd scripts
+pip install -r requirements.txt
+python -m playwright install chromium
+python fetch_overframe_builds.py --category warframes --item "Volt Prime" --limit 20 --merge
+# defaults: --sort Updated --patch latest (not all-time Rating)
+# old high-vote builds: add --sort Score --patch 0
+```
+
+Browser window opens (pass Cloudflare if asked). Writes `web/public/data/overframe_builds.json`. UI → **Builds → Overframe (local)**.
+
+**Arsenyx** — live API (smaller library). Toggle in the Builds tab.
 
 ### CI (no cloud host)
 
