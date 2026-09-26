@@ -43,7 +43,7 @@ const WEAPON_UN = "/Lotus/Weapons/Tenno/Bows/Nataruk";
 const FRAME_UN = "/Lotus/Powersuits/Volt/VoltPrime";
 
 describe("parseRawInventory", () => {
-  it("splits arcanes out of mods and keeps the highest rank", () => {
+  it("sums unranked raw stacks with ranked instances (disjoint pools)", () => {
     const owned = parseRawInventory(RAW, "Tenno");
     expect(owned.account).toBe("Tenno");
     expect(owned.mods.find((m) => m.uniqueName === MOD_UN)).toMatchObject({
@@ -56,6 +56,17 @@ describe("parseRawInventory", () => {
     expect(owned.arcanes).toEqual([
       { uniqueName: ARCANE_UN, rank: 3, count: 1 },
     ]);
+  });
+
+  it("counts duplicate ranked instances of the same mod separately", () => {
+    const owned = parseRawInventory({
+      Upgrades: [
+        { ItemType: MOD_UN, UpgradeFingerprint: '{"lvl":5}' },
+        { ItemType: MOD_UN, UpgradeFingerprint: '{"lvl":5}' },
+      ],
+      RawUpgrades: [{ ItemType: MOD_UN, ItemCount: 2 }],
+    });
+    expect(owned.mods).toEqual([{ uniqueName: MOD_UN, rank: 5, count: 4 }]);
   });
 
   it("reads rank, Forma and mastery from raw game bins", () => {

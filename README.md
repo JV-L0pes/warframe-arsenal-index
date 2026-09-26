@@ -137,6 +137,7 @@ It re-fetches DE Public Export + warframestat, validates counts, and commits `ca
 | Public Export names | High | Official DE dump; rebuild after major patches |
 | Weapon subtype (WFCD) | High | warframestat `type` (Rifle / Shotgun / Bow / …) |
 | Inventory dump | High *if fresh* | Snapshot at fetch/import — UI marks **stale** after 7 days |
+| Mod copy count | High | `RawUpgrades` (unranked stacks) + `Upgrades` (ranked instances) are disjoint pools and are summed per `uniqueName` |
 | Heuristic subtype leftover | Low | Only when WFCD has no `uniqueName` |
 
 **Guarantees we keep:**

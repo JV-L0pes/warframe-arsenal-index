@@ -41,6 +41,8 @@ export function parseRawInventory(
     { uniqueName: string; rank: number | null; count: number }
   >();
 
+  // Disjoint copy pools: RawUpgrades = unranked stacks (ItemCount copies),
+  // Upgrades = individual ranked/riven instances. Total copies = both summed.
   for (const key of ["RawUpgrades", "Upgrades"] as const) {
     const list = inv[key];
     if (!Array.isArray(list)) continue;

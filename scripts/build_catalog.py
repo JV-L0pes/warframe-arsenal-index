@@ -465,6 +465,7 @@ def main() -> int:
         }
         if account:
             owned["account"] = account
+        # RawUpgrades = unranked stacks, Upgrades = ranked instances; disjoint copies.
         for key in ("RawUpgrades", "Upgrades"):
             for e in inv.get(key) or []:
                 if not isinstance(e, dict):
