@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Headless Warframe inventory dump (Linux / Proton).
+"""Headless Warframe inventory dump (Linux / Windows).
 
 Scans Warframe.x64.exe memory for the mobile-API auth query string,
 then GETs https://mobile.warframe.com/api/inventory.php?...
 
 Requires:
   - Warframe running and logged in
-  - same user as the game
-  - kernel.yama.ptrace_scope == 0  (sudo sysctl kernel.yama.ptrace_scope=0)
+  - same user as the game (or admin on Windows if access is denied)
+  - Linux: kernel.yama.ptrace_scope == 0  (sudo sysctl kernel.yama.ptrace_scope=0)
 
 Risk: unsanctioned memory read + unofficial API use. DE does not endorse this.
 """
@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
+import platform
 import re
 import sys
 import urllib.error
@@ -24,7 +24,7 @@ import urllib.request
 from collections import Counter
 from pathlib import Path
 
-PROCESS_NAMES = ("Warframe.x64.exe", "Warframe.x64.ex")
+PROCESS_NAMES = ("Warframe.x64.exe", "Warframe.x64.ex", "Warframe.exe")
 AUTHZ_PATTERN = b"?accountId="
 ACCOUNT_ID_LEN = 24
 NONCE_PREFIX = b"&nonce="
@@ -32,9 +32,19 @@ CONFIDENCE = 3
 CHUNK = 1 << 20
 INVENTORY_URL = "https://mobile.warframe.com/api/inventory.php"
 SKIP_MAP_NAMES = {"[vdso]", "[vvar]", "[vsyscall]"}
+IS_WINDOWS = sys.platform == "win32"
+IS_LINUX = sys.platform.startswith("linux")
 
 
 def find_warframe_pid() -> int:
+    if IS_WINDOWS:
+        return _find_warframe_pid_windows()
+    if IS_LINUX:
+        return _find_warframe_pid_linux()
+    raise RuntimeError(f"unsupported platform: {platform.system()}")
+
+
+def _find_warframe_pid_linux() -> int:
     for entry in Path("/proc").iterdir():
         if not entry.name.isdigit():
             continue
@@ -47,7 +57,63 @@ def find_warframe_pid() -> int:
     raise RuntimeError("Warframe process not found (is the game running?)")
 
 
+def _find_warframe_pid_windows() -> int:
+    import ctypes
+    from ctypes import wintypes
+
+    TH32CS_SNAPPROCESS = 0x00000002
+    INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+
+    class PROCESSENTRY32W(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", wintypes.WCHAR * 260),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel32.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32W)]
+    kernel32.Process32FirstW.restype = wintypes.BOOL
+    kernel32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32W)]
+    kernel32.Process32NextW.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    snap = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+    if snap in (None, 0, INVALID_HANDLE_VALUE):
+        raise RuntimeError("CreateToolhelp32Snapshot failed")
+
+    entry = PROCESSENTRY32W()
+    entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+    try:
+        ok = kernel32.Process32FirstW(snap, ctypes.byref(entry))
+        while ok:
+            name = entry.szExeFile
+            if name in PROCESS_NAMES:
+                return int(entry.th32ProcessID)
+            ok = kernel32.Process32NextW(snap, ctypes.byref(entry))
+    finally:
+        kernel32.CloseHandle(snap)
+
+    raise RuntimeError("Warframe process not found (is the game running?)")
+
+
 def readable_regions(pid: int) -> list[tuple[int, int]]:
+    if IS_WINDOWS:
+        return _readable_regions_windows(pid)
+    return _readable_regions_linux(pid)
+
+
+def _readable_regions_linux(pid: int) -> list[tuple[int, int]]:
     regions: list[tuple[int, int]] = []
     maps = Path(f"/proc/{pid}/maps").read_text().splitlines()
     for line in maps:
@@ -65,6 +131,151 @@ def readable_regions(pid: int) -> list[tuple[int, int]]:
         if end > start:
             regions.append((start, end))
     return regions
+
+
+def _readable_regions_windows(pid: int) -> list[tuple[int, int]]:
+    import ctypes
+    from ctypes import wintypes
+
+    PROCESS_QUERY_INFORMATION = 0x0400
+    PROCESS_VM_READ = 0x0010
+    MEM_COMMIT = 0x1000
+    PAGE_NOACCESS = 0x01
+    PAGE_GUARD = 0x100
+
+    class MEMORY_BASIC_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("BaseAddress", ctypes.c_void_p),
+            ("AllocationBase", ctypes.c_void_p),
+            ("AllocationProtect", wintypes.DWORD),
+            ("RegionSize", ctypes.c_size_t),
+            ("State", wintypes.DWORD),
+            ("Protect", wintypes.DWORD),
+            ("Type", wintypes.DWORD),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    kernel32.VirtualQueryEx.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_void_p,
+        ctypes.POINTER(MEMORY_BASIC_INFORMATION),
+        ctypes.c_size_t,
+    ]
+    kernel32.VirtualQueryEx.restype = ctypes.c_size_t
+
+    handle = kernel32.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, False, pid)
+    if not handle:
+        err = ctypes.get_last_error()
+        raise RuntimeError(
+            f"OpenProcess failed (WinError {err}). "
+            "Run the terminal as Administrator, or ensure Warframe is running as the same user."
+        )
+
+    regions: list[tuple[int, int]] = []
+    address = 0
+    mbi = MEMORY_BASIC_INFORMATION()
+    max_addr = (1 << 48) - 1  # user-space ceiling for x64
+    try:
+        while address < max_addr:
+            got = kernel32.VirtualQueryEx(
+                handle,
+                ctypes.c_void_p(address),
+                ctypes.byref(mbi),
+                ctypes.sizeof(mbi),
+            )
+            if not got:
+                break
+            base = mbi.BaseAddress or 0
+            size = int(mbi.RegionSize)
+            protect = int(mbi.Protect)
+            if (
+                mbi.State == MEM_COMMIT
+                and size > 0
+                and not (protect & PAGE_NOACCESS)
+                and not (protect & PAGE_GUARD)
+            ):
+                regions.append((base, base + size))
+            nxt = base + size
+            if nxt <= address:
+                break
+            address = nxt
+    finally:
+        kernel32.CloseHandle(handle)
+    return regions
+
+
+def open_process_memory(pid: int):
+    if IS_WINDOWS:
+        return _WindowsMemory(pid)
+    return open(f"/proc/{pid}/mem", "rb", buffering=0)
+
+
+class _WindowsMemory:
+    """Minimal file-like reader over ReadProcessMemory."""
+
+    def __init__(self, pid: int) -> None:
+        import ctypes
+        from ctypes import wintypes
+
+        self._ctypes = ctypes
+        self._wintypes = wintypes
+        PROCESS_QUERY_INFORMATION = 0x0400
+        PROCESS_VM_READ = 0x0010
+
+        self._kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        self._kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        self._kernel32.OpenProcess.restype = wintypes.HANDLE
+        self._kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        self._kernel32.CloseHandle.restype = wintypes.BOOL
+        self._kernel32.ReadProcessMemory.argtypes = [
+            wintypes.HANDLE,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_size_t),
+        ]
+        self._kernel32.ReadProcessMemory.restype = wintypes.BOOL
+
+        self._handle = self._kernel32.OpenProcess(
+            PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, False, pid
+        )
+        if not self._handle:
+            err = ctypes.get_last_error()
+            raise RuntimeError(
+                f"OpenProcess failed (WinError {err}). "
+                "Run the terminal as Administrator, or ensure Warframe is running as the same user."
+            )
+        self._pos = 0
+
+    def seek(self, pos: int, whence: int = 0) -> int:
+        if whence != 0:
+            raise OSError("only SEEK_SET supported")
+        self._pos = pos
+        return self._pos
+
+    def read(self, n: int) -> bytes:
+        buf = (self._ctypes.c_char * n)()
+        read = self._ctypes.c_size_t(0)
+        ok = self._kernel32.ReadProcessMemory(
+            self._handle,
+            self._ctypes.c_void_p(self._pos),
+            buf,
+            n,
+            self._ctypes.byref(read),
+        )
+        if not ok or read.value == 0:
+            return b""
+        self._pos += read.value
+        return buf[: read.value]
+
+    def close(self) -> None:
+        if self._handle:
+            self._kernel32.CloseHandle(self._handle)
+            self._handle = None
 
 
 def extract_authz(buf: bytes, final: bool) -> tuple[str | None, str]:
@@ -107,7 +318,7 @@ def extract_authz(buf: bytes, final: bool) -> tuple[str | None, str]:
 
 def scan_authz(pid: int) -> str:
     regions = readable_regions(pid)
-    mem = open(f"/proc/{pid}/mem", "rb", buffering=0)
+    mem = open_process_memory(pid)
     candidates: Counter[str] = Counter()
     pattern = AUTHZ_PATTERN
 
@@ -156,6 +367,11 @@ def scan_authz(pid: int) -> str:
     finally:
         mem.close()
 
+    if IS_WINDOWS:
+        raise RuntimeError(
+            "authz not found in process memory "
+            "(is Warframe logged in? try running the terminal as Administrator)"
+        )
     raise RuntimeError(
         "authz not found in process memory "
         f"(ptrace_scope={_ptrace_scope()}; try: sudo sysctl kernel.yama.ptrace_scope=0)"
@@ -194,13 +410,17 @@ def main() -> int:
     ap.add_argument("--print-authz", action="store_true", help="print authz only (debug)")
     args = ap.parse_args()
 
-    scope = _ptrace_scope()
-    if scope not in {"0", "?"}:
-        print(
-            f"warn: ptrace_scope={scope} (often blocks /proc/PID/mem). "
-            "If scan fails: sudo sysctl kernel.yama.ptrace_scope=0",
-            file=sys.stderr,
-        )
+    if IS_LINUX:
+        scope = _ptrace_scope()
+        if scope not in {"0", "?"}:
+            print(
+                f"warn: ptrace_scope={scope} (often blocks /proc/PID/mem). "
+                "If scan fails: sudo sysctl kernel.yama.ptrace_scope=0",
+                file=sys.stderr,
+            )
+    elif not IS_WINDOWS:
+        print(f"error: unsupported platform {platform.system()}", file=sys.stderr)
+        return 1
 
     pid = find_warframe_pid()
     print(f"Warframe pid={pid}", file=sys.stderr)

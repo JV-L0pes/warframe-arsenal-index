@@ -140,17 +140,17 @@ def http_get(url: str) -> bytes:
 
 def load_manifest_urls() -> dict[str, str]:
     """Map Export*.json basename → full download URL with hash."""
+    from lzma_export import decompress_public_export_lzma
+
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache = CACHE_DIR / "index_en.txt"
     if not cache.exists():
         # index is lzma-compressed plain text of relative paths
-        import lzma
-
         raw = http_get(MANIFEST_INDEX)
-        text = lzma.decompress(raw).decode("utf-8", errors="replace")
-        cache.write_text(text)
+        text = decompress_public_export_lzma(raw).decode("utf-8", errors="replace")
+        cache.write_text(text, encoding="utf-8")
     else:
-        text = cache.read_text()
+        text = cache.read_text(encoding="utf-8")
 
     urls: dict[str, str] = {}
     for line in text.splitlines():

@@ -8,20 +8,25 @@ from __future__ import annotations
 
 import argparse
 import json
-import lzma
 import os
 import re
+import subprocess
 import sys
 import urllib.request
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
+from lzma_export import decompress_public_export_lzma
+
 ROOT = Path(__file__).resolve().parent
 CACHE = ROOT / "data" / "cache"
 OUT = ROOT.parent / "web" / "public" / "data"
 INV = ROOT / "data" / "inventory_raw.json"
 WFSTAT_WEAPONS = "https://api.warframestat.us/weapons"
+WFCD_ARCANES = (
+    "https://cdn.jsdelivr.net/gh/WFCD/warframe-items@master/data/json/Arcanes.json"
+)
 MANIFEST_INDEX = "https://content.warframe.com/PublicExport/index_en.txt.lzma"
 STALE_NOTE = "weapon subtypes prefer warframestat.us type by uniqueName"
 UA = {"User-Agent": "warframe-arsenal-index/1.0 (+https://github.com/JV-L0pes/warframe-arsenal-index)"}
@@ -159,7 +164,9 @@ def ensure_public_export(*, refresh: bool) -> None:
         return
 
     print("fetching Public Export index…", file=sys.stderr)
-    index_text = lzma.decompress(http_get(MANIFEST_INDEX)).decode("utf-8", errors="replace")
+    index_text = decompress_public_export_lzma(http_get(MANIFEST_INDEX)).decode(
+        "utf-8", errors="replace"
+    )
     (CACHE / "index_en.txt").write_text(index_text, encoding="utf-8")
 
     urls: dict[str, str] = {}
@@ -180,6 +187,39 @@ def ensure_public_export(*, refresh: bool) -> None:
         # validate JSON
         json.loads(text)
         (CACHE / name).write_text(text, encoding="utf-8")
+
+
+def load_arcanes(*, refresh: bool) -> list[dict]:
+    """WFCD arcanes with uniqueName (Public Export does not list them cleanly)."""
+    CACHE.mkdir(parents=True, exist_ok=True)
+    cache_path = CACHE / "wfcd_arcanes.json"
+    if refresh or not cache_path.exists():
+        print("fetching WFCD arcanes…", file=sys.stderr)
+        data = json.loads(http_get(WFCD_ARCANES).decode("utf-8"))
+        cache_path.write_text(json.dumps(data), encoding="utf-8")
+    else:
+        data = json.loads(cache_path.read_text(encoding="utf-8"))
+
+    out: list[dict] = []
+    seen: set[str] = set()
+    if not isinstance(data, list):
+        return out
+    for a in data:
+        if not isinstance(a, dict):
+            continue
+        un = a.get("uniqueName")
+        name = clean(a.get("name"))
+        if not un or not name or un in seen:
+            continue
+        seen.add(un)
+        out.append(
+            {
+                "uniqueName": un,
+                "name": name,
+                "rarity": a.get("rarity"),
+            }
+        )
+    return sorted(out, key=lambda x: x["name"].lower())
 
 
 def load_warframestat_weapon_types(*, refresh: bool) -> dict[str, str]:
@@ -360,28 +400,48 @@ def main() -> int:
         or "/Powersuits/" in f.get("uniqueName", "")
     ]
 
+    print("loading WFCD arcanes…", file=sys.stderr)
+    arcanes = load_arcanes(refresh=refresh)
+    print(f"  arcanes: {len(arcanes)}", file=sys.stderr)
+
+    # Overframe id→name map used by the Builds → Overframe import UI
+    try:
+        print("refreshing Overframe items CSV…", file=sys.stderr)
+        r = subprocess.run(
+            [sys.executable, str(ROOT / "fetch_overframe_items.py")],
+            check=False,
+        )
+        if r.returncode != 0:
+            print("  warn overframe items CSV: exit non-zero", file=sys.stderr)
+    except Exception as e:
+        print(f"  warn overframe items CSV: {e}", file=sys.stderr)
+
     catalog = {
-        "generatedFrom": "Warframe Public Export + warframestat.us",
+        "generatedFrom": "Warframe Public Export + warframestat.us + WFCD arcanes",
         "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "filters": [
             "full Public Export (no mod skips)",
             STALE_NOTE,
+            "arcanes from WFCD warframe-items",
         ],
         "weaponSubtypeSources": dict(source_counts),
         "counts": {
             "mods": len(mods),
             "weapons": len(wout),
             "warframes": len(fout),
+            "arcanes": len(arcanes),
         },
         "mods": sorted(mods, key=lambda x: x["name"].lower()),
         "weapons": sorted(wout, key=lambda x: x["name"].lower()),
         "warframes": sorted(fout, key=lambda x: x["name"].lower()),
+        "arcanes": arcanes,
     }
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "catalog.json").write_text(json.dumps(catalog, ensure_ascii=False))
     print(
         f"catalog: {len(catalog['mods'])} mods, "
-        f"{len(catalog['weapons'])} weapons, {len(catalog['warframes'])} frames"
+        f"{len(catalog['weapons'])} weapons, {len(catalog['warframes'])} frames, "
+        f"{len(catalog['arcanes'])} arcanes"
     )
     print("mod cats", Counter(m["category"] for m in catalog["mods"]).most_common(8))
 
