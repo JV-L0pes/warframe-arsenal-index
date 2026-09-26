@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCategorizedLists,
+  buildCsv,
   enrichOwnedSnapshot,
   isInventoryStale,
   parseInventoryFile,
@@ -132,20 +133,20 @@ describe("staleness", () => {
   });
 });
 
-describe("buildCategorizedLists", () => {
-  const catalog: Catalog = {
-    generatedFrom: "test",
-    mods: [{ uniqueName: MOD_UN, name: "Serration", category: "rifle" }],
-    weapons: [
-      { uniqueName: WEAPON_UN, name: "Nataruk", slot: "primary", subtype: "bow" },
-    ],
-    warframes: [{ uniqueName: FRAME_UN, name: "Volt Prime" }],
-    arcanes: [{ uniqueName: ARCANE_UN, name: "Arcane Fury" }],
-  };
+const CATALOG: Catalog = {
+  generatedFrom: "test",
+  mods: [{ uniqueName: MOD_UN, name: "Serration", category: "rifle" }],
+  weapons: [
+    { uniqueName: WEAPON_UN, name: "Nataruk", slot: "primary", subtype: "bow" },
+  ],
+  warframes: [{ uniqueName: FRAME_UN, name: "Volt Prime" }],
+  arcanes: [{ uniqueName: ARCANE_UN, name: "Arcane Fury" }],
+};
 
+describe("buildCategorizedLists", () => {
   it("exports mods/arcanes as names and gear as status objects", () => {
     const owned = parseRawInventory(RAW, "Tenno");
-    const lists = buildCategorizedLists(catalog, owned, "all");
+    const lists = buildCategorizedLists(CATALOG, owned, "all");
     expect(lists.mods_rifle).toEqual(["Serration"]);
     expect(lists.arcanes).toEqual(["Arcane Fury"]);
     expect(lists.warframes).toEqual([
@@ -158,5 +159,41 @@ describe("buildCategorizedLists", () => {
     expect(lists.primary_bow).toEqual([
       expect.objectContaining({ name: "Nataruk", rank: 3, mastery: "open" }),
     ]);
+  });
+});
+
+describe("buildCsv", () => {
+  it("flattens owned items under a stable header", () => {
+    const owned = parseRawInventory(RAW, "Tenno");
+    const csv = buildCsv(CATALOG, owned, "all");
+    const lines = csv.replace("\uFEFF", "").trim().split("\r\n");
+    expect(lines[0]).toBe(
+      "type,name,group,subtype,rank,count,polarized,mastery",
+    );
+    expect(lines).toContain("mod,Serration,rifle,,10,3,,");
+    expect(lines).toContain("arcane,Arcane Fury,arcane,,3,1,,");
+    expect(lines).toContain("weapon,Nataruk,primary,bow,3,,0,open");
+    expect(lines).toContain("warframe,Volt Prime,,,2,,1,done");
+  });
+
+  it("escapes separators and filters by scope", () => {
+    const csv = buildCsv(
+      {
+        generatedFrom: "test",
+        mods: [
+          { uniqueName: "/m", name: 'Serration, "Prime"', category: "rifle" },
+        ],
+        weapons: [],
+        warframes: [],
+      },
+      {
+        mods: [{ uniqueName: "/m", rank: 0, count: 1 }],
+        weapons: [],
+        warframes: [],
+      },
+      "mods",
+    );
+    expect(csv).toContain('mod,"Serration, ""Prime""",rifle,,0,1,,');
+    expect(csv).not.toContain("weapon,");
   });
 });

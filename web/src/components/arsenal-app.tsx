@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   buildCategorizedLists,
+  buildCsv,
   formatSyncedAt,
   isInventoryStale,
   parseInventoryFile,
@@ -261,6 +262,22 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     await navigator.clipboard.writeText(JSON.stringify(lists, null, 2));
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
+  }
+
+  function exportCsv() {
+    const scope =
+      section === "builds"
+        ? "all"
+        : (section as "mods" | "weapons" | "warframes" | "arcanes");
+    const blob = new Blob([buildCsv(catalog, owned, scope)], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `inventory_${scope}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const groups = useMemo(() => {
@@ -538,6 +555,14 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                       disabled={!owned}
                     >
                       Export lists
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={exportCsv}
+                      disabled={!owned}
+                    >
+                      Export CSV
                     </Button>
                     <Button
                       variant="outline"

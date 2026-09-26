@@ -373,3 +373,102 @@ export function buildCategorizedLists(
   return lists;
 }
 
+function csvField(value: string): string {
+  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+/** Flat, spreadsheet-friendly export of owned items (BOM + CRLF for Excel). */
+export function buildCsv(
+  catalog: Catalog,
+  owned: OwnedSnapshot | null,
+  scope: ExportScope = "all",
+): string {
+  const rows: string[][] = [
+    ["type", "name", "group", "subtype", "rank", "count", "polarized", "mastery"],
+  ];
+  const rank = (r: number | null | undefined) => (r == null ? "" : String(r));
+
+  if (scope === "all" || scope === "mods") {
+    const ownedMods = new Map(
+      (owned?.mods ?? []).map((m) => [m.uniqueName, m] as const),
+    );
+    for (const mod of catalog.mods) {
+      const o = ownedMods.get(mod.uniqueName);
+      if (!o) continue;
+      rows.push([
+        "mod",
+        mod.name,
+        String(mod.category ?? ""),
+        "",
+        rank(o.rank),
+        String(o.count ?? 1),
+        "",
+        "",
+      ]);
+    }
+  }
+
+  if (scope === "all" || scope === "arcanes") {
+    const ownedArcanes = new Map(
+      (owned?.arcanes ?? []).map((a) => [a.uniqueName, a] as const),
+    );
+    for (const a of catalog.arcanes ?? []) {
+      const o = ownedArcanes.get(a.uniqueName);
+      if (!o) continue;
+      rows.push([
+        "arcane",
+        a.name,
+        "arcane",
+        "",
+        rank(o.rank),
+        String(o.count ?? 1),
+        "",
+        "",
+      ]);
+    }
+  }
+
+  if (scope === "all" || scope === "weapons") {
+    const ownedWeapons = new Map(
+      (owned?.weapons ?? []).map((w) => [w.uniqueName, w] as const),
+    );
+    for (const w of catalog.weapons) {
+      const o = ownedWeapons.get(w.uniqueName);
+      if (!o) continue;
+      rows.push([
+        "weapon",
+        w.name,
+        w.slot,
+        w.subtype,
+        rank(o.rank),
+        "",
+        String(o.polarized ?? 0),
+        o.masteryDone ? "done" : "open",
+      ]);
+    }
+  }
+
+  if (scope === "all" || scope === "warframes") {
+    const ownedFrames = new Map(
+      (owned?.warframes ?? []).map((f) => [f.uniqueName, f] as const),
+    );
+    for (const f of catalog.warframes) {
+      const o = ownedFrames.get(f.uniqueName);
+      if (!o) continue;
+      rows.push([
+        "warframe",
+        f.name,
+        "",
+        "",
+        rank(o.rank),
+        "",
+        String(o.polarized ?? 0),
+        o.masteryDone ? "done" : "open",
+      ]);
+    }
+  }
+
+  const body = rows.map((r) => r.map(csvField).join(",")).join("\r\n");
+  return `\uFEFF${body}\r\n`;
+}
+
