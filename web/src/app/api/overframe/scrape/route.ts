@@ -15,6 +15,12 @@ const CATEGORIES = new Set([
   "sentinels",
 ]);
 
+function scrapeAllowed(): boolean {
+  return (
+    process.env.NODE_ENV !== "production" || process.env.ARSENAL_SCRAPE === "1"
+  );
+}
+
 type ScrapeStatus = {
   state: "idle" | "running" | "ok" | "error";
   item?: string;
@@ -34,7 +40,7 @@ function resolvePython(): string {
 }
 
 function repoRoot(): string {
-  return path.resolve(process.cwd(), "..");
+  return path.resolve(/* turbopackIgnore: true */ process.cwd(), "..");
 }
 
 function statusPath(): string {
@@ -75,6 +81,17 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!scrapeAllowed()) {
+    return NextResponse.json(
+      {
+        error: "scrape_disabled",
+        message:
+          "Scrape roda apenas no dev server local. Defina ARSENAL_SCRAPE=1 para liberar.",
+      },
+      { status: 403 },
+    );
+  }
+
   let body: {
     item?: string;
     category?: string;
@@ -135,7 +152,7 @@ export async function POST(request: Request) {
   let stdout = "";
   let stderr = "";
 
-  const child = spawn(python, args, {
+  const child = spawn(/* turbopackIgnore: true */ python, args, {
     cwd: path.join(repoRoot(), "scripts"),
     env: { ...process.env, PYTHONUTF8: "1" },
     windowsHide: false,

@@ -112,6 +112,8 @@ python fetch_overframe_builds.py --category warframes --item "Volt Prime" --limi
 
 Browser window opens (pass Cloudflare if asked). Writes `web/public/data/overframe_builds.json`. UI → **Builds → Overframe (local)**.
 
+The UI scrape route only runs in `next dev`; set `ARSENAL_SCRAPE=1` to allow it in a production build.
+
 **Arsenyx** — live API (smaller library). Toggle in the Builds tab.
 
 ### CI (no cloud host)
