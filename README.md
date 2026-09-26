@@ -2,7 +2,7 @@
 
 Local-first Warframe arsenal browser. Black & white. No accounts. No telemetry.
 
-Cross-check the full Public Export catalog (mods, weapons, warframes) against **your** inventory dump, then export categorized JSON lists.
+Cross-check the full Public Export catalog (mods, weapons, warframes, arcanes) against **your** inventory dump, then export it as JSON, CSV or XLSX.
 
 **Unofficial. Not affiliated with Digital Extremes.**
 
@@ -12,7 +12,7 @@ Cross-check the full Public Export catalog (mods, weapons, warframes) against **
 
 - Full mod catalog by class (rifle, shotgun, pistol, melee, warframe, aura, stance, …)
 - Owned / missing filters + search
-- Import `inventory_raw.json` from the Linux fetch script
+- Import `inventory_raw.json` from the fetch script (Windows / Linux)
 - Export / copy categorized lists (`mods_rifle`, `primary_bow`, `warframes`, …)
 - Export CSV of owned inventory (mods, arcanes, weapons, warframes) for spreadsheets
 - Export XLSX (native spreadsheet) of the same data
@@ -90,6 +90,9 @@ In the UI: **Import JSON** → `scripts/data/inventory_raw.json`
 ```
 
 Mods export as **name strings only**. Weapons/warframes keep rank · Forma · mastery status.
+
+**Export CSV** / **Export XLSX** flatten the active section (all sections on first load) with columns `type, name, group, subtype, rank, count, polarized, mastery`.
+
 ## Rebuild catalog
 
 ```bash
@@ -110,6 +113,8 @@ GitHub Actions refreshes the catalog automatically:
 
 Workflow: [`.github/workflows/refresh-catalog.yml`](.github/workflows/refresh-catalog.yml)  
 It re-fetches DE Public Export + warframestat, validates counts, and commits `catalog.json` only if it changed. Inventory dumps stay local (never in CI).
+
+Quality checks run on every push/PR via [`.github/workflows/ci.yml`](.github/workflows/ci.yml): ESLint, `tsc`, unit tests (Vitest + Python `unittest`), `next build` and `npm audit --audit-level=high`.
 
 ## Data reliability
 
