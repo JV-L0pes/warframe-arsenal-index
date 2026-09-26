@@ -1,4 +1,4 @@
-import type { Catalog, OwnedSnapshot } from "@/lib/types";
+import type { OwnedSnapshot } from "@/lib/types";
 
 export type BuildPart = {
   uniqueName: string;
@@ -148,51 +148,4 @@ export function scoreCraftability(
     pct,
     itemOwned,
   };
-}
-
-export function normalizeItemName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/<[^>]+>/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-/** Map display names → uniqueName using catalog mods + arcanes. */
-export function buildNameIndex(catalog: Catalog): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const m of catalog.mods) {
-    map.set(normalizeItemName(m.name), m.uniqueName);
-  }
-  for (const a of catalog.arcanes ?? []) {
-    map.set(normalizeItemName(a.name), a.uniqueName);
-  }
-  for (const f of catalog.warframes) {
-    map.set(normalizeItemName(f.name), f.uniqueName);
-  }
-  for (const w of catalog.weapons) {
-    map.set(normalizeItemName(w.name), w.uniqueName);
-  }
-  return map;
-}
-
-export function partsFromNames(
-  entries: { name: string; rank?: number | null; kind?: "mod" | "arcane" }[],
-  nameIndex: Map<string, string>,
-): BuildPart[] {
-  const parts: BuildPart[] = [];
-  const seen = new Set<string>();
-  for (const e of entries) {
-    const un = nameIndex.get(normalizeItemName(e.name));
-    if (!un || seen.has(un)) continue;
-    seen.add(un);
-    const isArcane = un.includes("/CosmeticEnhancers/");
-    parts.push({
-      uniqueName: un,
-      name: e.name,
-      kind: e.kind ?? (isArcane ? "arcane" : "mod"),
-      rank: e.rank ?? null,
-    });
-  }
-  return parts;
 }

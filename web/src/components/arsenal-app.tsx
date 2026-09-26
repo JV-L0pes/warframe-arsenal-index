@@ -285,15 +285,9 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
           </div>
           <div className="hidden flex-col items-end gap-2 sm:flex">
             <div className="flex items-center gap-2">
-              {owned?.account ? (
-                <Badge variant="outline" className="font-mono text-[11px]">
-                  {owned.account}
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="font-mono text-[11px]">
-                  no inventory
-                </Badge>
-              )}
+              <Badge variant="outline" className="font-mono text-[11px]">
+                {owned ? (owned.account ?? "local inventory") : "no inventory"}
+              </Badge>
               <Badge variant="secondary" className="font-mono text-[11px]">
                 {catalog.mods.length} mods
               </Badge>
