@@ -152,9 +152,9 @@ def wait_for_cloudflare(page, *, interactive: bool, timeout_s: float = 300) -> N
         if is_cloudflare_challenge(page) and not prompted:
             if interactive:
                 print(
-                    "\n>>> Cloudflare captcha na janela do browser.\n"
-                    ">>> Resolve até a página do Overframe carregar.\n"
-                    ">>> Depois volta aqui e aperta ENTER.\n",
+                    "\n>>> Cloudflare captcha in the browser window.\n"
+                    ">>> Solve it until the Overframe page loads.\n"
+                    ">>> Then come back here and press ENTER.\n",
                     file=sys.stderr,
                 )
                 try:
@@ -163,8 +163,8 @@ def wait_for_cloudflare(page, *, interactive: bool, timeout_s: float = 300) -> N
                     pass
             else:
                 print(
-                    "\n>>> Cloudflare captcha — resolve na janela do Chrome "
-                    "(o script espera até 5 min).\n",
+                    "\n>>> Cloudflare captcha — solve it in the Chrome window "
+                    "(the script waits up to 5 min).\n",
                     file=sys.stderr,
                 )
             prompted = True
@@ -177,8 +177,8 @@ def wait_for_cloudflare(page, *, interactive: bool, timeout_s: float = 300) -> N
     if page_looks_ready(page) and not is_cloudflare_challenge(page):
         return
     raise RuntimeError(
-        "Cloudflare ainda bloqueando. Rode uma vez no terminal pra salvar o cookie "
-        "em scripts/data/overframe_browser_profile."
+        "Cloudflare still blocking. Run once in the terminal to save the cookie "
+        "in scripts/data/overframe_browser_profile."
     )
 
 
@@ -496,7 +496,7 @@ def main() -> int:
     if not args.item.strip() and not args.any_item:
         if interactive:
             print(
-                'Qual item? Ex: Volt Prime  (Enter vazio = top global)',
+                'Which item? e.g. Volt Prime  (empty Enter = global top)',
                 file=sys.stderr,
             )
             try:
@@ -507,10 +507,10 @@ def main() -> int:
                 args.item = typed
             else:
                 args.any_item = True
-                print("ok — top global da categoria", file=sys.stderr)
+                print("ok — category global top", file=sys.stderr)
         else:
             print(
-                'error: passa --item "Volt Prime" (ou --any-item pro top global)',
+                'error: pass --item "Volt Prime" (or --any-item for the global top)',
                 file=sys.stderr,
             )
             return 2
@@ -602,7 +602,7 @@ def main() -> int:
         print(f"open {list_url}", file=sys.stderr)
         if interactive:
             print(
-                "Se aparecer captcha: resolve na janela, depois ENTER neste terminal.",
+                "If a captcha appears: solve it in the window, then press ENTER here.",
                 file=sys.stderr,
             )
         page.goto(list_url, wait_until="domcontentloaded", timeout=120_000)

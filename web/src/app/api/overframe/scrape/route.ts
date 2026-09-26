@@ -72,7 +72,7 @@ export async function GET() {
       finishedAt: new Date().toISOString(),
       error:
         status.error ||
-        "Scrape process lost (dev server reload?). Roda de novo ou usa o CLI.",
+        "Scrape process lost (dev server reload?). Run it again or use the CLI.",
     };
     writeStatus(healed);
     return NextResponse.json(healed);
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
       {
         error: "scrape_disabled",
         message:
-          "Scrape roda apenas no dev server local. Defina ARSENAL_SCRAPE=1 para liberar.",
+          "Scrape only runs in the local dev server. Set ARSENAL_SCRAPE=1 to allow it.",
       },
       { status: 403 },
     );
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
   const item = typeof body.item === "string" ? body.item.trim() : "";
   if (!item || item.length > 80) {
     return NextResponse.json(
-      { error: 'Passa item, ex: "Volt Prime"' },
+      { error: 'Pass an item, e.g. "Volt Prime"' },
       { status: 400 },
     );
   }
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: "already_running",
-        message: "Já tem um scrape rodando. Espera terminar.",
+        message: "A scrape is already running. Wait for it to finish.",
         status: readStatus(),
       },
       { status: 409 },
