@@ -267,6 +267,12 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     URL.revokeObjectURL(url);
   }
 
+  async function exportXlsx() {
+    const scope = section as "mods" | "weapons" | "warframes" | "arcanes";
+    const { downloadInventoryXlsx } = await import("@/lib/xlsx");
+    await downloadInventoryXlsx(catalog, owned, scope);
+  }
+
   const groups = useMemo(() => {
     const map = new Map<string, typeof MOD_CATEGORY_META>();
     for (const meta of MOD_CATEGORY_META) {
@@ -541,6 +547,14 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                   disabled={!owned}
                 >
                   Export CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void exportXlsx()}
+                  disabled={!owned}
+                >
+                  Export XLSX
                 </Button>
                 <Button
                   variant="outline"

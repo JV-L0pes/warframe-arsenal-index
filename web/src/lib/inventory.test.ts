@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCategorizedLists,
   buildCsv,
+  buildInventoryRows,
   enrichOwnedSnapshot,
   isInventoryStale,
   parseInventoryFile,
@@ -195,5 +196,32 @@ describe("buildCsv", () => {
     );
     expect(csv).toContain('mod,"Serration, ""Prime""",rifle,,0,1,,');
     expect(csv).not.toContain("weapon,");
+  });
+});
+
+describe("buildInventoryRows", () => {
+  it("keeps numeric columns as numbers for spreadsheets", () => {
+    const owned = parseRawInventory(RAW, "Tenno");
+    const rows = buildInventoryRows(CATALOG, owned, "mods");
+    expect(rows.find((r) => r[1] === "Serration")).toEqual([
+      "mod",
+      "Serration",
+      "rifle",
+      "",
+      10,
+      3,
+      "",
+      "",
+    ]);
+    expect(buildInventoryRows(CATALOG, owned, "weapons")).toContainEqual([
+      "weapon",
+      "Nataruk",
+      "primary",
+      "bow",
+      3,
+      "",
+      0,
+      "open",
+    ]);
   });
 });

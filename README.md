@@ -15,6 +15,7 @@ Cross-check the full Public Export catalog (mods, weapons, warframes) against **
 - Import `inventory_raw.json` from the Linux fetch script
 - Export / copy categorized lists (`mods_rifle`, `primary_bow`, `warframes`, …)
 - Export CSV of owned inventory (mods, arcanes, weapons, warframes) for spreadsheets
+- Export XLSX (native spreadsheet) of the same data
 - Personal inventory never committed (`owned.json` / raw dumps gitignored)
 
 ## Stack

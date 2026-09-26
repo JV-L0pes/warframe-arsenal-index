@@ -373,20 +373,18 @@ export function buildCategorizedLists(
   return lists;
 }
 
-function csvField(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-}
+export type InventoryRow = (string | number)[];
 
-/** Flat, spreadsheet-friendly export of owned items (BOM + CRLF for Excel). */
-export function buildCsv(
+/** Flat inventory rows shared by the CSV and XLSX exports. */
+export function buildInventoryRows(
   catalog: Catalog,
   owned: OwnedSnapshot | null,
   scope: ExportScope = "all",
-): string {
-  const rows: string[][] = [
+): InventoryRow[] {
+  const rows: InventoryRow[] = [
     ["type", "name", "group", "subtype", "rank", "count", "polarized", "mastery"],
   ];
-  const rank = (r: number | null | undefined) => (r == null ? "" : String(r));
+  const rank = (r: number | null | undefined) => r ?? "";
 
   if (scope === "all" || scope === "mods") {
     const ownedMods = new Map(
@@ -401,7 +399,7 @@ export function buildCsv(
         String(mod.category ?? ""),
         "",
         rank(o.rank),
-        String(o.count ?? 1),
+        o.count ?? 1,
         "",
         "",
       ]);
@@ -421,7 +419,7 @@ export function buildCsv(
         "arcane",
         "",
         rank(o.rank),
-        String(o.count ?? 1),
+        o.count ?? 1,
         "",
         "",
       ]);
@@ -442,7 +440,7 @@ export function buildCsv(
         w.subtype,
         rank(o.rank),
         "",
-        String(o.polarized ?? 0),
+        o.polarized ?? 0,
         o.masteryDone ? "done" : "open",
       ]);
     }
@@ -462,13 +460,28 @@ export function buildCsv(
         "",
         rank(o.rank),
         "",
-        String(o.polarized ?? 0),
+        o.polarized ?? 0,
         o.masteryDone ? "done" : "open",
       ]);
     }
   }
 
-  const body = rows.map((r) => r.map(csvField).join(",")).join("\r\n");
+  return rows;
+}
+
+function csvField(value: string): string {
+  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+/** Spreadsheet-ready CSV (BOM + CRLF for Excel). */
+export function buildCsv(
+  catalog: Catalog,
+  owned: OwnedSnapshot | null,
+  scope: ExportScope = "all",
+): string {
+  const body = buildInventoryRows(catalog, owned, scope)
+    .map((row) => row.map((v) => csvField(String(v))).join(","))
+    .join("\r\n");
   return `\uFEFF${body}\r\n`;
 }
 
