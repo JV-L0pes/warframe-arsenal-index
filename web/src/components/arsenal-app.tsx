@@ -27,7 +27,6 @@ import {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DisclaimerDialog } from "@/components/disclaimer-dialog";
-import { BuildsPanel } from "@/components/builds-panel";
 import { GearRow, ItemRow } from "@/components/arsenal-rows";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -198,9 +197,6 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
       ).length;
       return { total: arcanes.length, owned: ownedN };
     }
-    if (section === "builds") {
-      return { total: 0, owned: 0 };
-    }
     const ownedN = catalog.warframes.filter((f) =>
       ownedFrameMap.has(f.uniqueName),
     ).length;
@@ -237,10 +233,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
   }
 
   function exportLists() {
-    const scope =
-      section === "builds"
-        ? "all"
-        : (section as "mods" | "weapons" | "warframes" | "arcanes");
+    const scope = section as "mods" | "weapons" | "warframes" | "arcanes";
     const lists = buildCategorizedLists(catalog, owned, scope);
     const blob = new Blob([JSON.stringify(lists, null, 2)], {
       type: "application/json",
@@ -254,10 +247,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
   }
 
   async function copyLists() {
-    const scope =
-      section === "builds"
-        ? "all"
-        : (section as "mods" | "weapons" | "warframes" | "arcanes");
+    const scope = section as "mods" | "weapons" | "warframes" | "arcanes";
     const lists = buildCategorizedLists(catalog, owned, scope);
     await navigator.clipboard.writeText(JSON.stringify(lists, null, 2));
     setCopied(true);
@@ -265,10 +255,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
   }
 
   function exportCsv() {
-    const scope =
-      section === "builds"
-        ? "all"
-        : (section as "mods" | "weapons" | "warframes" | "arcanes");
+    const scope = section as "mods" | "weapons" | "warframes" | "arcanes";
     const blob = new Blob([buildCsv(catalog, owned, scope)], {
       type: "text/csv;charset=utf-8",
     });
@@ -350,7 +337,6 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                   ["weapons", "Weapons"],
                   ["warframes", "Warframes"],
                   ["arcanes", "Arcanes"],
-                  ["builds", "Builds"],
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -360,7 +346,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                     setSection(id);
                     if (id === "weapons" || id === "mods") setCategory("all");
                     if (id === "warframes") setCategory("warframes");
-                    if (id === "arcanes" || id === "builds") setCategory("all");
+                    if (id === "arcanes") setCategory("all");
                   }}
                   className={cn(
                     "rounded-md px-3 py-2 text-left text-sm transition-colors",
@@ -502,19 +488,13 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                           : category
                         : section === "arcanes"
                           ? "Arcanes"
-                          : section === "builds"
-                            ? "Builds"
-                            : "Warframes"}
+                          : "Warframes"}
                   </h2>
-                  {section !== "builds" && (
-                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                      {progress.owned}/{progress.total} · {pct}%
-                    </span>
-                  )}
+                  <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                    {progress.owned}/{progress.total} · {pct}%
+                  </span>
                 </div>
-                {section !== "builds" && (
-                  <Progress value={pct} className="h-1 max-w-sm" />
-                )}
+                <Progress value={pct} className="h-1 max-w-sm" />
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -546,34 +526,30 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                 >
                   Import JSON
                 </Button>
-                {section !== "builds" && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={exportLists}
-                      disabled={!owned}
-                    >
-                      Export lists
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={exportCsv}
-                      disabled={!owned}
-                    >
-                      Export CSV
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={copyLists}
-                      disabled={!owned}
-                    >
-                      {copied ? "Copied" : "Copy JSON"}
-                    </Button>
-                  </>
-                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportLists}
+                  disabled={!owned}
+                >
+                  Export lists
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportCsv}
+                  disabled={!owned}
+                >
+                  Export CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={copyLists}
+                  disabled={!owned}
+                >
+                  {copied ? "Copied" : "Copy JSON"}
+                </Button>
                 {owned && (
                   <Button
                     variant="ghost"
@@ -586,8 +562,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
               </div>
             </div>
 
-            {section !== "builds" && (
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -622,13 +597,9 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                   </label>
                 )}
               </div>
-            )}
           </div>
 
           <ScrollArea className="h-[calc(100vh-14rem)]">
-            {section === "builds" ? (
-              <BuildsPanel catalog={catalog} owned={owned} />
-            ) : (
             <div className="px-2 py-2 md:px-4">
               {section === "mods" && (
                 <ul className="divide-y divide-border">
@@ -695,7 +666,6 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                 </ul>
               )}
             </div>
-            )}
           </ScrollArea>
 
           <footer className="mt-auto border-t border-border px-4 py-3 md:px-6">

@@ -118,7 +118,7 @@ export type OwnedSnapshot = {
 
 export type OwnershipFilter = "all" | "owned" | "missing";
 
-export type Section = "mods" | "weapons" | "warframes" | "arcanes" | "builds";
+export type Section = "mods" | "weapons" | "warframes" | "arcanes";
 
 export const MOD_CATEGORY_META: {
   id: ModCategory | string;

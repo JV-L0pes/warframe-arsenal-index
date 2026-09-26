@@ -10,7 +10,6 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 import urllib.request
 from collections import Counter
@@ -403,18 +402,6 @@ def main() -> int:
     print("loading WFCD arcanes…", file=sys.stderr)
     arcanes = load_arcanes(refresh=refresh)
     print(f"  arcanes: {len(arcanes)}", file=sys.stderr)
-
-    # Overframe id→name map used by the Builds → Overframe import UI
-    try:
-        print("refreshing Overframe items CSV…", file=sys.stderr)
-        r = subprocess.run(
-            [sys.executable, str(ROOT / "fetch_overframe_items.py")],
-            check=False,
-        )
-        if r.returncode != 0:
-            print("  warn overframe items CSV: exit non-zero", file=sys.stderr)
-    except Exception as e:
-        print(f"  warn overframe items CSV: {e}", file=sys.stderr)
 
     catalog = {
         "generatedFrom": "Warframe Public Export + warframestat.us + WFCD arcanes",

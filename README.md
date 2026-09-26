@@ -93,29 +93,9 @@ Mods export as **name strings only**. Weapons/warframes keep rank · Forma · ma
 
 ```bash
 # downloads Public Export + warframestat + WFCD arcanes, writes web/public/data/catalog.json
-# also refreshes overframe-items.csv (Overframe id→name map for import)
 python scripts/build_catalog.py --refresh
 # Linux: python3 scripts/build_catalog.py --refresh
 ```
-
-### Builds
-
-**Overframe (local dump)** — no public API; Cloudflare blocks server scrapes.
-
-```powershell
-cd scripts
-pip install -r requirements.txt
-python -m playwright install chromium
-python fetch_overframe_builds.py --category warframes --item "Volt Prime" --limit 20 --merge
-# defaults: --sort Updated --patch latest (not all-time Rating)
-# old high-vote builds: add --sort Score --patch 0
-```
-
-Browser window opens (pass Cloudflare if asked). Writes `web/public/data/overframe_builds.json`. UI → **Builds → Overframe (local)**.
-
-The UI scrape route only runs in `next dev`; set `ARSENAL_SCRAPE=1` to allow it in a production build.
-
-**Arsenyx** — live API (smaller library). Toggle in the Builds tab.
 
 ### CI (no cloud host)
 
