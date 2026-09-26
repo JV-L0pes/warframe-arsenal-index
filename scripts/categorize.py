@@ -7,7 +7,7 @@ with path heuristics as fallback.
 Example output shape:
 
 {
-  "account": "B4uklotze",
+  "account": null,
   "mods": {
     "rifle": [{"name": "Serration", "rank": 10, "count": 1}],
     "shotgun": [...],
@@ -501,7 +501,7 @@ def main() -> int:
         type=Path,
         default=Path("data/inventory_categorized.json"),
     )
-    ap.add_argument("--account", default="B4uklotze")
+    ap.add_argument("--account", default=None)
     ap.add_argument("--no-export-db", action="store_true", help="skip Public Export download")
     ap.add_argument("--lists-only", action="store_true", help="write only the flat lists object")
     args = ap.parse_args()

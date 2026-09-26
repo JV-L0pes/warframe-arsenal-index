@@ -455,14 +455,16 @@ def main() -> int:
         synced_at = datetime.fromtimestamp(
             INV.stat().st_mtime, tz=timezone.utc
         ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        account = os.environ.get("WARFRAME_ACCOUNT")
         owned: dict = {
             "mods": {},
             "weapons": [],
             "warframes": [],
-            "account": "B4uklotze",
             "syncedAt": synced_at,
             "source": "mobile-api",
         }
+        if account:
+            owned["account"] = account
         for key in ("RawUpgrades", "Upgrades"):
             for e in inv.get(key) or []:
                 if not isinstance(e, dict):

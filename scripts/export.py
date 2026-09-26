@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Fetch + categorize Warframe inventory")
-    ap.add_argument("--account", default="B4uklotze")
+    ap.add_argument("--account", default=None)
     ap.add_argument("--lists-only", action="store_true")
     ap.add_argument("--skip-fetch", action="store_true", help="only categorize existing raw JSON")
     args = ap.parse_args()
