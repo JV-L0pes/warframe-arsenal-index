@@ -16,9 +16,9 @@ import {
   STALE_AFTER_DAYS,
 } from "@/lib/inventory";
 import { useOwnedInventory } from "@/lib/use-owned-inventory";
+import { useStoredState } from "@/lib/use-stored-state";
 import {
   MOD_CATEGORY_META,
-  polarityLabel,
   type Catalog,
   type OwnershipFilter,
   type OwnedSnapshot,
@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { DisclaimerDialog } from "@/components/disclaimer-dialog";
 import { BuildsPanel } from "@/components/builds-panel";
+import { GearRow, ItemRow } from "@/components/arsenal-rows";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type Props = {
@@ -36,12 +37,22 @@ type Props = {
 
 export function ArsenalApp({ catalog, initialOwned }: Props) {
   const { owned, persistOwned } = useOwnedInventory(initialOwned);
-  const [section, setSection] = useState<Section>("mods");
+  const [section, setSection] = useStoredState<Section>(
+    "arsenal-index:section",
+    "mods",
+  );
   const [category, setCategory] = useState<string>("all");
-  const [filter, setFilter] = useState<OwnershipFilter>("all");
+  const [filter, setFilter] = useStoredState<OwnershipFilter>(
+    "arsenal-index:filter",
+    "all",
+  );
   const [query, setQuery] = useState("");
-  const [hideAugments, setHideAugments] = useState(true);
+  const [hideAugments, setHideAugments] = useStoredState(
+    "arsenal-index:hide-augments",
+    true,
+  );
   const [copied, setCopied] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const ownedModMap = useMemo(() => {
     const m = new Map<string, { rank: number | null; count: number }>();
@@ -430,6 +441,18 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
         </aside>
 
         <main className="flex min-w-0 flex-1 flex-col">
+          {importError && (
+            <div className="border-b border-border px-4 py-3 md:px-6">
+              <Alert className="border-border bg-muted/30">
+                <AlertTitle className="font-mono text-xs tracking-wide uppercase">
+                  Import failed
+                </AlertTitle>
+                <AlertDescription className="text-xs text-muted-foreground">
+                  {importError}
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
           {stale && owned && (
             <div className="border-b border-border px-4 py-3 md:px-6">
               <Alert className="border-border bg-muted/30">
@@ -488,8 +511,9 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                     if (!file) return;
                     try {
                       await onImportFile(file);
+                      setImportError(null);
                     } catch (err) {
-                      alert(
+                      setImportError(
                         err instanceof Error
                           ? err.message
                           : "Could not parse JSON.",
@@ -583,56 +607,17 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
             <div className="px-2 py-2 md:px-4">
               {section === "mods" && (
                 <ul className="divide-y divide-border">
-                  {filteredMods.map((mod) => {
-                    const o = ownedModMap.get(mod.uniqueName);
-                    return (
-                      <li
-                        key={mod.uniqueName}
-                        className="grid grid-cols-[1fr_auto] items-center gap-3 px-2 py-2.5 md:grid-cols-[1fr_100px_90px_70px]"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={cn(
-                                "size-1.5 shrink-0 rounded-full",
-                                o ? "bg-foreground" : "bg-border",
-                              )}
-                            />
-                            <span
-                              className={cn(
-                                "truncate text-sm",
-                                o ? "text-foreground" : "text-muted-foreground",
-                              )}
-                            >
-                              {mod.name}
-                            </span>
-                            {mod.isAugment && (
-                              <span className="font-mono text-[10px] text-muted-foreground">
-                                AUG
-                              </span>
-                            )}
-                          </div>
-                          {mod.compatName && (
-                            <p className="mt-0.5 truncate pl-3.5 font-mono text-[10px] text-muted-foreground">
-                              {mod.compatName}
-                            </p>
-                          )}
-                        </div>
-                        <span className="hidden font-mono text-[11px] text-muted-foreground md:block">
-                          {polarityLabel(mod.polarity)}
-                        </span>
-                        <span className="hidden font-mono text-[11px] text-muted-foreground uppercase md:block">
-                          {mod.rarity?.toLowerCase() ?? "—"}
-                        </span>
-                        <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground">
-                          {o
-                            ? `r${o.rank ?? "—"}` +
-                              (o.count > 1 ? ` ×${o.count}` : "")
-                            : "—"}
-                        </span>
-                      </li>
-                    );
-                  })}
+                  {filteredMods.map((mod) => (
+                    <ItemRow
+                      key={mod.uniqueName}
+                      name={mod.name}
+                      owned={ownedModMap.get(mod.uniqueName)}
+                      polarity={mod.polarity}
+                      rarity={mod.rarity}
+                      isAugment={mod.isAugment}
+                      compatName={mod.compatName}
+                    />
+                  ))}
                   {filteredMods.length === 0 && (
                     <li className="px-3 py-12 text-center text-sm text-muted-foreground">
                       No mods match.
@@ -643,148 +628,40 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
 
               {section === "weapons" && (
                 <ul className="divide-y divide-border">
-                  {filteredWeapons.map((w) => {
-                    const o = ownedWeaponMap.get(w.uniqueName);
-                    const isOwned = Boolean(o);
-                    return (
-                      <li
-                        key={w.uniqueName}
-                        className="flex items-center justify-between gap-3 px-2 py-2.5"
-                      >
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span
-                            className={cn(
-                              "size-1.5 shrink-0 rounded-full",
-                              isOwned ? "bg-foreground" : "bg-border",
-                            )}
-                          />
-                          <span
-                            className={cn(
-                              "truncate text-sm",
-                              isOwned
-                                ? "text-foreground"
-                                : "text-muted-foreground",
-                            )}
-                          >
-                            {w.name}
-                          </span>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2 font-mono text-[11px] text-muted-foreground">
-                          {o && (
-                            <>
-                              <span className="tabular-nums">r{o.rank ?? 0}</span>
-                              {(o.polarized ?? 0) > 0 && (
-                                <span title="Forma applied">★{o.polarized}</span>
-                              )}
-                              {o.masteryDone ? (
-                                <span
-                                  className="text-foreground/80"
-                                  title="Ranks 1–30 mastery already claimed — releveling won't give more MR XP"
-                                >
-                                  mastery done
-                                </span>
-                              ) : (
-                                <span title="Still earns Mastery Rank XP">MR open</span>
-                              )}
-                            </>
-                          )}
-                          <span className="capitalize opacity-70">{w.subtype}</span>
-                        </div>
-                      </li>
-                    );
-                  })}
+                  {filteredWeapons.map((w) => (
+                    <GearRow
+                      key={w.uniqueName}
+                      name={w.name}
+                      owned={ownedWeaponMap.get(w.uniqueName)}
+                      subtype={w.subtype}
+                    />
+                  ))}
                 </ul>
               )}
 
               {section === "warframes" && (
                 <ul className="divide-y divide-border">
-                  {filteredFrames.map((f) => {
-                    const o = ownedFrameMap.get(f.uniqueName);
-                    const isOwned = Boolean(o);
-                    return (
-                      <li
-                        key={f.uniqueName}
-                        className="flex items-center justify-between gap-3 px-2 py-2.5"
-                      >
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span
-                            className={cn(
-                              "size-1.5 shrink-0 rounded-full",
-                              isOwned ? "bg-foreground" : "bg-border",
-                            )}
-                          />
-                          <span
-                            className={cn(
-                              "truncate text-sm",
-                              isOwned
-                                ? "text-foreground"
-                                : "text-muted-foreground",
-                            )}
-                          >
-                            {f.name}
-                          </span>
-                        </div>
-                        {o && (
-                          <div className="flex shrink-0 items-center gap-2 font-mono text-[11px] text-muted-foreground">
-                            <span className="tabular-nums">r{o.rank ?? 0}</span>
-                            {(o.polarized ?? 0) > 0 && (
-                              <span title="Forma applied">★{o.polarized}</span>
-                            )}
-                            {o.masteryDone ? (
-                              <span
-                                className="text-foreground/80"
-                                title="Ranks 1–30 mastery already claimed — releveling won't give more MR XP"
-                              >
-                                mastery done
-                              </span>
-                            ) : (
-                              <span title="Still earns Mastery Rank XP">MR open</span>
-                            )}
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
+                  {filteredFrames.map((f) => (
+                    <GearRow
+                      key={f.uniqueName}
+                      name={f.name}
+                      owned={ownedFrameMap.get(f.uniqueName)}
+                    />
+                  ))}
                 </ul>
               )}
 
               {section === "arcanes" && (
                 <ul className="divide-y divide-border">
-                  {filteredArcanes.map((a) => {
-                    const o = ownedArcaneMap.get(a.uniqueName);
-                    return (
-                      <li
-                        key={a.uniqueName}
-                        className="grid grid-cols-[1fr_auto] items-center gap-3 px-2 py-2.5 md:grid-cols-[1fr_90px_70px]"
-                      >
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span
-                            className={cn(
-                              "size-1.5 shrink-0 rounded-full",
-                              o ? "bg-foreground" : "bg-border",
-                            )}
-                          />
-                          <span
-                            className={cn(
-                              "truncate text-sm",
-                              o ? "text-foreground" : "text-muted-foreground",
-                            )}
-                          >
-                            {a.name}
-                          </span>
-                        </div>
-                        <span className="hidden font-mono text-[11px] text-muted-foreground uppercase md:block">
-                          {a.rarity?.toLowerCase() ?? "—"}
-                        </span>
-                        <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground">
-                          {o
-                            ? `r${o.rank ?? "—"}` +
-                              (o.count > 1 ? ` ×${o.count}` : "")
-                            : "—"}
-                        </span>
-                      </li>
-                    );
-                  })}
+                  {filteredArcanes.map((a) => (
+                    <ItemRow
+                      key={a.uniqueName}
+                      name={a.name}
+                      owned={ownedArcaneMap.get(a.uniqueName)}
+                      rarity={a.rarity}
+                      variant="arcane"
+                    />
+                  ))}
                   {filteredArcanes.length === 0 && (
                     <li className="px-3 py-12 text-center text-sm text-muted-foreground">
                       No arcanes match.
