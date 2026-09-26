@@ -24,8 +24,12 @@ import {
   type Craftability,
 } from "@/lib/craftability";
 import type { Catalog, OwnedSnapshot } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { OverframeBuildsPanel } from "@/components/overframe-builds-panel";
+import {
+  CraftBadge,
+  CraftDetails,
+  MIN_CRAFT,
+} from "@/components/builds-shared";
 
 type Props = {
   catalog: Catalog;
@@ -33,13 +37,6 @@ type Props = {
 };
 
 type BuildSource = "arsenyx" | "overframe";
-
-const MIN_CRAFT = [
-  { id: 0, label: "Any %" },
-  { id: 50, label: "≥50%" },
-  { id: 80, label: "≥80%" },
-  { id: 100, label: "100%" },
-] as const;
 
 const EMPTY_LIST: ArsenyxBuildSummary[] = [];
 
@@ -448,17 +445,7 @@ export function BuildsPanel({ catalog, owned }: Props) {
                     </p>
                   </button>
                   <div className="flex shrink-0 flex-col items-end gap-1">
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        "font-mono tabular-nums",
-                        craft &&
-                          craft.pct === 100 &&
-                          "bg-foreground text-background",
-                      )}
-                    >
-                      {craft ? `${craft.pct}%` : "—"}
-                    </Badge>
+                    <CraftBadge pct={craft?.pct ?? null} />
                     <a
                       href={arsenyxBuildUrl(b.slug)}
                       target="_blank"
@@ -472,37 +459,7 @@ export function BuildsPanel({ catalog, owned }: Props) {
                 {craft && (
                   <Progress value={craft.pct} className="mt-2 h-1 max-w-md" />
                 )}
-                {isOpen && detailCraft && (
-                  <div className="mt-3 space-y-2 rounded-md border border-border p-3">
-                    <p className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-                      {detailCraft.owned}/{detailCraft.total} ok
-                      {detailCraft.underleveled.length
-                        ? ` · ${detailCraft.underleveled.length} low rank`
-                        : ""}
-                    </p>
-                    {detailCraft.missing.length > 0 ? (
-                      <ul className="grid gap-1 sm:grid-cols-2">
-                        {detailCraft.missing.map((m) => (
-                          <li
-                            key={`${m.uniqueName}-${m.reason}`}
-                            className="font-mono text-[11px] text-muted-foreground"
-                          >
-                            <span className="text-foreground/80">{m.name}</span>
-                            <span className="ml-1 opacity-60">
-                              {m.reason === "low_rank"
-                                ? `r${m.ownedRank ?? "?"}→${m.rank}`
-                                : m.kind}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        You meet every mod/arcane at required rank.
-                      </p>
-                    )}
-                  </div>
-                )}
+                {isOpen && detailCraft && <CraftDetails craft={detailCraft} />}
               </li>
             );
           })}

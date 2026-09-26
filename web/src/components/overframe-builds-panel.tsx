@@ -14,7 +14,11 @@ import {
   type OverframeLocalDump,
 } from "@/lib/overframe-local";
 import type { Catalog, OwnedSnapshot } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import {
+  CraftBadge,
+  CraftDetails,
+  MIN_CRAFT,
+} from "@/components/builds-shared";
 
 type Props = {
   catalog: Catalog;
@@ -34,13 +38,6 @@ const CATS = [
   { id: "primary", label: "Primary" },
   { id: "secondary", label: "Secondary" },
   { id: "melee", label: "Melee" },
-] as const;
-
-const MIN_CRAFT = [
-  { id: 0, label: "Any %" },
-  { id: 50, label: "≥50%" },
-  { id: 80, label: "≥80%" },
-  { id: 100, label: "100%" },
 ] as const;
 
 function scrapeCategory(category: string): string {
@@ -129,7 +126,7 @@ export function OverframeBuildsPanel({
           setScrapeError(null);
           setScrapeLog(
             status.log?.slice(-800) ||
-              `ok — ${status.item ?? "dump"} atualizado`,
+              `ok — ${status.item ?? "dump"} updated`,
           );
           await reload(true);
           return;
@@ -155,12 +152,12 @@ export function OverframeBuildsPanel({
   async function fetchFromOverframe() {
     const item = scrapeName.trim();
     if (!item) {
-      setScrapeError("Digita o nome do frame/arma (ex: Volt Prime)");
+      setScrapeError("Type a frame/weapon name (e.g. Volt Prime)");
       return;
     }
     setScraping(true);
     setScrapeError(null);
-    setScrapeLog("Iniciando scrape… Chrome pode abrir (CF).");
+    setScrapeLog("Starting scrape… Chrome may open (CF).");
     try {
       const res = await fetch("/api/overframe/scrape", {
         method: "POST",
@@ -174,7 +171,7 @@ export function OverframeBuildsPanel({
       });
       const body = await res.json();
       if (res.status === 409) {
-        setScrapeLog("Já tem scrape rodando — acompanhando…");
+        setScrapeLog("A scrape is already running — following it…");
         return;
       }
       if (!res.ok) {
@@ -186,7 +183,7 @@ export function OverframeBuildsPanel({
               : `HTTP ${res.status}`,
         );
       }
-      setScrapeLog("Buscando… (poll). Resolve CF no Chrome se aparecer.");
+      setScrapeLog("Fetching… (polling). Solve CF in Chrome if prompted.");
     } catch (err) {
       setScraping(false);
       setScrapeError(err instanceof Error ? err.message : "Scrape failed");
@@ -243,17 +240,17 @@ export function OverframeBuildsPanel({
   const scrapeBox = (
     <div className="space-y-3 rounded-md border border-border p-3">
       <div>
-        <p className="text-sm font-medium tracking-tight">Buscar no Overframe</p>
+        <p className="text-sm font-medium tracking-tight">Search Overframe</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Digita o frame/arma. Abre Chrome local (CF se precisar). Faz merge no
-          dump — não apaga outros itens.
+          Type the frame/weapon. Opens local Chrome (CF if needed). Merges into
+          the dump — other items are kept.
         </p>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Input
           value={scrapeName}
           onChange={(e) => setScrapeName(e.target.value)}
-          placeholder='Ex: Volt Prime, Nataruk, Laetum…'
+          placeholder="e.g. Volt Prime, Nataruk, Laetum…"
           className="max-w-sm bg-transparent"
           disabled={scraping}
           onKeyDown={(e) => {
@@ -271,7 +268,7 @@ export function OverframeBuildsPanel({
           <option value={30}>30 builds</option>
         </select>
         <Button size="sm" onClick={() => void fetchFromOverframe()} disabled={scraping}>
-          {scraping ? "Buscando… (pode abrir Chrome)" : "Buscar"}
+          {scraping ? "Fetching… (may open Chrome)" : "Search"}
         </Button>
       </div>
       {ownedItemOptions.length > 0 && (
@@ -312,7 +309,7 @@ export function OverframeBuildsPanel({
         <p className="py-6 text-center text-sm text-muted-foreground">
           Loading Overframe dump…
           <span className="mt-1 block text-xs">
-            Se travar: reinicia `npm run dev` (scrape longo trava o Next).
+            If it hangs: restart `npm run dev` (long scrapes block Next).
           </span>
         </p>
       </div>
@@ -326,11 +323,11 @@ export function OverframeBuildsPanel({
       {!dump?.builds?.length ? (
         <Alert className="border-border bg-muted/30">
           <AlertTitle className="font-mono text-xs tracking-wide uppercase">
-            Dump vazio
+            Empty dump
           </AlertTitle>
           <AlertDescription className="text-xs text-muted-foreground">
-            Usa o campo acima pra puxar builds. Primeira vez pode pedir captcha
-            no Chrome.
+            Use the field above to pull builds. First time may ask for a captcha
+            in Chrome.
           </AlertDescription>
         </Alert>
       ) : (
@@ -362,7 +359,7 @@ export function OverframeBuildsPanel({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Filtrar lista…"
+              placeholder="Filter list…"
               className="max-w-sm bg-transparent"
             />
             <select
@@ -432,7 +429,7 @@ export function OverframeBuildsPanel({
             ))}
             {filtered.length === 0 && (
               <li className="py-12 text-center text-sm text-muted-foreground">
-                Nada nessa filtro — busca outro item acima.
+                Nothing matches — search another item above.
               </li>
             )}
           </ul>
@@ -471,15 +468,7 @@ function OverframeRow({
           </p>
         </button>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <Badge
-            variant="secondary"
-            className={cn(
-              "font-mono tabular-nums",
-              craftPct === 100 && "bg-foreground text-background",
-            )}
-          >
-            {craftPct}%
-          </Badge>
+          <CraftBadge pct={craftPct} />
           <a
             href={build.url}
             target="_blank"
@@ -491,37 +480,7 @@ function OverframeRow({
         </div>
       </div>
       <Progress value={craftPct} className="mt-2 h-1 max-w-md" />
-      {open && (
-        <div className="mt-3 space-y-2 rounded-md border border-border p-3">
-          <p className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            {craft.owned}/{craft.total} ok
-            {craft.underleveled.length
-              ? ` · ${craft.underleveled.length} low rank`
-              : ""}
-          </p>
-          {craft.missing.length > 0 ? (
-            <ul className="grid gap-1 sm:grid-cols-2">
-              {craft.missing.map((m) => (
-                <li
-                  key={`${m.uniqueName}-${m.reason}`}
-                  className="font-mono text-[11px] text-muted-foreground"
-                >
-                  <span className="text-foreground/80">{m.name}</span>
-                  <span className="ml-1 opacity-60">
-                    {m.reason === "low_rank"
-                      ? `r${m.ownedRank ?? "?"}→${m.rank}`
-                      : m.kind}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              You meet every listed mod/arcane at required rank.
-            </p>
-          )}
-        </div>
-      )}
+      {open && <CraftDetails craft={craft} />}
     </li>
   );
 }
