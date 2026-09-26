@@ -36,6 +36,10 @@ export function parseRawInventory(
     string,
     { uniqueName: string; rank: number | null; count: number }
   >();
+  const arcanes = new Map<
+    string,
+    { uniqueName: string; rank: number | null; count: number }
+  >();
 
   for (const key of ["RawUpgrades", "Upgrades"] as const) {
     const list = inv[key];
@@ -45,6 +49,14 @@ export function parseRawInventory(
       const e = entry as Record<string, unknown>;
       const uniqueName = e.ItemType;
       if (typeof uniqueName !== "string" || !uniqueName) continue;
+      // Skip weapon/companion blueprints that sometimes land in upgrade bins
+      if (
+        uniqueName.includes("/Weapons/") ||
+        uniqueName.includes("/Types/") ||
+        uniqueName.includes("/Powersuits/")
+      ) {
+        continue;
+      }
 
       let rank: number | null = null;
       const fp = e.UpgradeFingerprint;
@@ -61,7 +73,9 @@ export function parseRawInventory(
       }
 
       const count = Number(e.ItemCount ?? 1) || 1;
-      const cur = mods.get(uniqueName) ?? {
+      const isArcane = uniqueName.includes("/CosmeticEnhancers/");
+      const bucket = isArcane ? arcanes : mods;
+      const cur = bucket.get(uniqueName) ?? {
         uniqueName,
         rank: null,
         count: 0,
@@ -70,7 +84,7 @@ export function parseRawInventory(
       if (rank !== null && (cur.rank === null || rank > cur.rank)) {
         cur.rank = rank;
       }
-      mods.set(uniqueName, cur);
+      bucket.set(uniqueName, cur);
     }
   }
 
@@ -117,6 +131,7 @@ export function parseRawInventory(
     mods: [...mods.values()],
     weapons,
     warframes,
+    arcanes: [...arcanes.values()],
   };
 }
 
@@ -130,10 +145,36 @@ export function isOwnedSnapshot(value: unknown): value is OwnedSnapshot {
   );
 }
 
-/** Fill rank / masteryDone from xp + polarized when missing (older snapshots). */
+/** Fill rank / masteryDone; migrate CosmeticEnhancers out of mods → arcanes. */
 export function enrichOwnedSnapshot(owned: OwnedSnapshot): OwnedSnapshot {
+  const arcaneMap = new Map(
+    (owned.arcanes ?? []).map((a) => [a.uniqueName, { ...a }] as const),
+  );
+  const mods: OwnedSnapshot["mods"] = [];
+  for (const m of owned.mods) {
+    if (m.uniqueName.includes("/CosmeticEnhancers/")) {
+      const cur = arcaneMap.get(m.uniqueName);
+      if (!cur) {
+        arcaneMap.set(m.uniqueName, { ...m });
+      } else {
+        arcaneMap.set(m.uniqueName, {
+          uniqueName: cur.uniqueName,
+          count: Math.max(cur.count, m.count),
+          rank:
+            m.rank != null && (cur.rank == null || m.rank > cur.rank)
+              ? m.rank
+              : cur.rank,
+        });
+      }
+      continue;
+    }
+    mods.push(m);
+  }
+
   return {
     ...owned,
+    mods,
+    arcanes: [...arcaneMap.values()],
     weapons: owned.weapons.map((w) => {
       const polarized = w.polarized ?? 0;
       const rank = w.rank ?? rankFromXp("weapon", w.xp);
@@ -243,7 +284,7 @@ export type ExportEntry = {
 /** Mods are plain names; weapons/warframes keep status objects. */
 export type ExportPayload = Record<string, string[] | ExportEntry[]>;
 
-export type ExportScope = "all" | "mods" | "weapons" | "warframes";
+export type ExportScope = "all" | "mods" | "weapons" | "warframes" | "arcanes";
 
 export function buildCategorizedLists(
   catalog: Catalog,
@@ -262,6 +303,20 @@ export function buildCategorizedLists(
       const key = `mods_${mod.category}`;
       if (!lists[key]) lists[key] = [] as string[];
       (lists[key] as string[]).push(mod.name);
+    }
+  }
+
+  if (scope === "all" || scope === "arcanes") {
+    const ownedArcanes = new Map(
+      (owned?.arcanes ?? []).map((a) => [a.uniqueName, a] as const),
+    );
+    const names: string[] = [];
+    for (const a of catalog.arcanes ?? []) {
+      if (!ownedArcanes.has(a.uniqueName)) continue;
+      names.push(a.name);
+    }
+    if (names.length) {
+      lists.arcanes = names.sort((a, b) => a.localeCompare(b));
     }
   }
 

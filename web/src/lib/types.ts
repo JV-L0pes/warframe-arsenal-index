@@ -51,6 +51,12 @@ export type CatalogWarframe = {
   productCategory?: string;
 };
 
+export type CatalogArcane = {
+  uniqueName: string;
+  name: string;
+  rarity?: ModRarity;
+};
+
 export type Catalog = {
   generatedFrom: string;
   generatedAt?: string;
@@ -59,10 +65,12 @@ export type Catalog = {
     mods: number;
     weapons: number;
     warframes: number;
+    arcanes?: number;
   };
   mods: CatalogMod[];
   weapons: CatalogWeapon[];
   warframes: CatalogWarframe[];
+  arcanes?: CatalogArcane[];
 };
 
 export type OwnedMod = {
@@ -90,6 +98,12 @@ export type OwnedWarframe = {
   masteryDone?: boolean;
 };
 
+export type OwnedArcane = {
+  uniqueName: string;
+  rank: number | null;
+  count: number;
+};
+
 export type OwnedSnapshot = {
   account?: string;
   /** ISO timestamp when this dump was fetched/imported */
@@ -99,11 +113,12 @@ export type OwnedSnapshot = {
   mods: OwnedMod[];
   weapons: OwnedWeapon[];
   warframes: OwnedWarframe[];
+  arcanes?: OwnedArcane[];
 };
 
 export type OwnershipFilter = "all" | "owned" | "missing";
 
-export type Section = "mods" | "weapons" | "warframes";
+export type Section = "mods" | "weapons" | "warframes" | "arcanes" | "builds";
 
 export const MOD_CATEGORY_META: {
   id: ModCategory | string;

@@ -61,7 +61,7 @@ export function DisclaimerDialog() {
           </AlertTitle>
           <AlertDescription className="mt-2 space-y-2 text-xs leading-relaxed text-muted-foreground">
             <p>
-              The Linux export script reads Warframe process memory for a short-lived
+              The export script reads Warframe process memory for a short-lived
               session token, then calls an unofficial mobile inventory API. It does
               not write to the game or automate gameplay.
             </p>

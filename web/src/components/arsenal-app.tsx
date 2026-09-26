@@ -26,6 +26,7 @@ import {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DisclaimerDialog } from "@/components/disclaimer-dialog";
+import { BuildsPanel } from "@/components/builds-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type Props = {
@@ -66,6 +67,15 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     for (const f of owned?.warframes ?? []) m.set(f.uniqueName, f);
     return m;
   }, [owned]);
+  const ownedArcaneMap = useMemo(() => {
+    const m = new Map<string, { rank: number | null; count: number }>();
+    for (const a of owned?.arcanes ?? []) {
+      m.set(a.uniqueName, { rank: a.rank, count: a.count });
+    }
+    return m;
+  }, [owned]);
+
+  const arcanes = useMemo(() => catalog.arcanes ?? [], [catalog.arcanes]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, { total: number; owned: number }> = {
@@ -152,12 +162,32 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     });
   }, [catalog.warframes, filter, ownedFrameMap, query]);
 
+  const filteredArcanes = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return arcanes.filter((a) => {
+      const isOwned = ownedArcaneMap.has(a.uniqueName);
+      if (filter === "owned" && !isOwned) return false;
+      if (filter === "missing" && isOwned) return false;
+      if (!q) return true;
+      return a.name.toLowerCase().includes(q);
+    });
+  }, [arcanes, filter, ownedArcaneMap, query]);
+
   const progress = useMemo(() => {
     if (section === "mods") {
       return categoryCounts[category] ?? { total: 0, owned: 0 };
     }
     if (section === "weapons") {
       return weaponSlotCounts[weaponSlot] ?? { total: 0, owned: 0 };
+    }
+    if (section === "arcanes") {
+      const ownedN = arcanes.filter((a) =>
+        ownedArcaneMap.has(a.uniqueName),
+      ).length;
+      return { total: arcanes.length, owned: ownedN };
+    }
+    if (section === "builds") {
+      return { total: 0, owned: 0 };
     }
     const ownedN = catalog.warframes.filter((f) =>
       ownedFrameMap.has(f.uniqueName),
@@ -171,6 +201,8 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     weaponSlot,
     weaponSlotCounts,
     ownedFrameMap,
+    arcanes,
+    ownedArcaneMap,
   ]);
 
   const pct =
@@ -193,20 +225,28 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
   }
 
   function exportLists() {
-    const lists = buildCategorizedLists(catalog, owned, section);
+    const scope =
+      section === "builds"
+        ? "all"
+        : (section as "mods" | "weapons" | "warframes" | "arcanes");
+    const lists = buildCategorizedLists(catalog, owned, scope);
     const blob = new Blob([JSON.stringify(lists, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `inventory_${section}.json`;
+    a.download = `inventory_${scope}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
   async function copyLists() {
-    const lists = buildCategorizedLists(catalog, owned, section);
+    const scope =
+      section === "builds"
+        ? "all"
+        : (section as "mods" | "weapons" | "warframes" | "arcanes");
+    const lists = buildCategorizedLists(catalog, owned, scope);
     await navigator.clipboard.writeText(JSON.stringify(lists, null, 2));
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
@@ -257,6 +297,11 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
               <Badge variant="secondary" className="font-mono text-[11px]">
                 {catalog.mods.length} mods
               </Badge>
+              {arcanes.length > 0 && (
+                <Badge variant="secondary" className="font-mono text-[11px]">
+                  {arcanes.length} arcanes
+                </Badge>
+              )}
             </div>
             {owned && (
               <Badge
@@ -282,6 +327,8 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                   ["mods", "Mods"],
                   ["weapons", "Weapons"],
                   ["warframes", "Warframes"],
+                  ["arcanes", "Arcanes"],
+                  ["builds", "Builds"],
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -291,6 +338,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                     setSection(id);
                     if (id === "weapons" || id === "mods") setCategory("all");
                     if (id === "warframes") setCategory("warframes");
+                    if (id === "arcanes" || id === "builds") setCategory("all");
                   }}
                   className={cn(
                     "rounded-md px-3 py-2 text-left text-sm transition-colors",
@@ -418,13 +466,21 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                         ? category === "all"
                           ? "All weapons"
                           : category
-                        : "Warframes"}
+                        : section === "arcanes"
+                          ? "Arcanes"
+                          : section === "builds"
+                            ? "Builds"
+                            : "Warframes"}
                   </h2>
-                  <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                    {progress.owned}/{progress.total} · {pct}%
-                  </span>
+                  {section !== "builds" && (
+                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                      {progress.owned}/{progress.total} · {pct}%
+                    </span>
+                  )}
                 </div>
-                <Progress value={pct} className="h-1 max-w-sm" />
+                {section !== "builds" && (
+                  <Progress value={pct} className="h-1 max-w-sm" />
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -455,22 +511,26 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                 >
                   Import JSON
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={exportLists}
-                  disabled={!owned}
-                >
-                  Export lists
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={copyLists}
-                  disabled={!owned}
-                >
-                  {copied ? "Copied" : "Copy JSON"}
-                </Button>
+                {section !== "builds" && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={exportLists}
+                      disabled={!owned}
+                    >
+                      Export lists
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={copyLists}
+                      disabled={!owned}
+                    >
+                      {copied ? "Copied" : "Copy JSON"}
+                    </Button>
+                  </>
+                )}
                 {owned && (
                   <Button
                     variant="ghost"
@@ -483,44 +543,49 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
               </div>
             </div>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search…"
-                className="max-w-sm bg-transparent"
-              />
-              <div className="flex gap-1">
-                {(
-                  [
-                    ["all", "All"],
-                    ["owned", "Owned"],
-                    ["missing", "Missing"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <Button
-                    key={id}
-                    size="sm"
-                    variant={filter === id ? "default" : "ghost"}
-                    onClick={() => setFilter(id)}
-                  >
-                    {label}
-                  </Button>
-                ))}
+            {section !== "builds" && (
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search…"
+                  className="max-w-sm bg-transparent"
+                />
+                <div className="flex gap-1">
+                  {(
+                    [
+                      ["all", "All"],
+                      ["owned", "Owned"],
+                      ["missing", "Missing"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <Button
+                      key={id}
+                      size="sm"
+                      variant={filter === id ? "default" : "ghost"}
+                      onClick={() => setFilter(id)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                {section === "mods" && (
+                  <label className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
+                    <Checkbox
+                      checked={hideAugments}
+                      onCheckedChange={(v) => setHideAugments(Boolean(v))}
+                    />
+                    Hide augments
+                  </label>
+                )}
               </div>
-              {section === "mods" && (
-                <label className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
-                  <Checkbox
-                    checked={hideAugments}
-                    onCheckedChange={(v) => setHideAugments(Boolean(v))}
-                  />
-                  Hide augments
-                </label>
-              )}
-            </div>
+            )}
           </div>
 
           <ScrollArea className="h-[calc(100vh-14rem)]">
+            {section === "builds" ? (
+              <BuildsPanel catalog={catalog} owned={owned} />
+            ) : (
             <div className="px-2 py-2 md:px-4">
               {section === "mods" && (
                 <ul className="divide-y divide-border">
@@ -688,7 +753,53 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                   })}
                 </ul>
               )}
+
+              {section === "arcanes" && (
+                <ul className="divide-y divide-border">
+                  {filteredArcanes.map((a) => {
+                    const o = ownedArcaneMap.get(a.uniqueName);
+                    return (
+                      <li
+                        key={a.uniqueName}
+                        className="grid grid-cols-[1fr_auto] items-center gap-3 px-2 py-2.5 md:grid-cols-[1fr_90px_70px]"
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            className={cn(
+                              "size-1.5 shrink-0 rounded-full",
+                              o ? "bg-foreground" : "bg-border",
+                            )}
+                          />
+                          <span
+                            className={cn(
+                              "truncate text-sm",
+                              o ? "text-foreground" : "text-muted-foreground",
+                            )}
+                          >
+                            {a.name}
+                          </span>
+                        </div>
+                        <span className="hidden font-mono text-[11px] text-muted-foreground uppercase md:block">
+                          {a.rarity?.toLowerCase() ?? "—"}
+                        </span>
+                        <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground">
+                          {o
+                            ? `r${o.rank ?? "—"}` +
+                              (o.count > 1 ? ` ×${o.count}` : "")
+                            : "—"}
+                        </span>
+                      </li>
+                    );
+                  })}
+                  {filteredArcanes.length === 0 && (
+                    <li className="px-3 py-12 text-center text-sm text-muted-foreground">
+                      No arcanes match.
+                    </li>
+                  )}
+                </ul>
+              )}
             </div>
+            )}
           </ScrollArea>
 
           <footer className="mt-auto border-t border-border px-4 py-3 md:px-6">
