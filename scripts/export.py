@@ -33,9 +33,9 @@ def main() -> int:
         str(raw),
         "-o",
         str(out),
-        "--account",
-        args.account,
     ]
+    if args.account:
+        cmd.extend(["--account", args.account])
     if args.lists_only:
         cmd.append("--lists-only")
     return subprocess.run(cmd).returncode
