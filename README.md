@@ -13,9 +13,8 @@ Cross-check the full Public Export catalog (mods, weapons, warframes, arcanes) a
 - Full mod catalog by class (rifle, shotgun, pistol, melee, warframe, aura, stance, …)
 - Owned / missing filters + search
 - Import `inventory_raw.json` from the fetch script (Windows / Linux)
-- Export / copy categorized lists (`mods_rifle`, `primary_bow`, `warframes`, …)
-- Export CSV of owned inventory (mods, arcanes, weapons, warframes) for spreadsheets
-- Export XLSX (native spreadsheet) of the same data
+- Export modal: toggle any combination of sections (mods, weapons, warframes, arcanes) and format (JSON lists, CSV, XLSX)
+- Copy JSON categorized lists (`mods_rifle`, `primary_bow`, `warframes`, …)
 - Personal inventory never committed (`owned.json` / raw dumps gitignored)
 
 ## Stack
@@ -61,9 +60,11 @@ python3 export.py
 
 In the UI: **Import JSON** → `scripts/data/inventory_raw.json`
 
-### Export lists
+### Export
 
-**Export lists** / **Copy JSON** — owned items with status:
+**Export…** opens a modal: toggle any combination of sections (Mods, Weapons, Warframes, Arcanes — all on by default) and pick the format. Files are named `inventory_<sections>.<ext>` — `inventory_all.json` when every section is on, `inventory_mods-weapons.csv` for combinations. **Copy JSON** copies the same categorized lists to the clipboard.
+
+Categorized lists (JSON) — owned items with status:
 
 ```json
 {
@@ -91,7 +92,7 @@ In the UI: **Import JSON** → `scripts/data/inventory_raw.json`
 
 Mods export as **name strings only**. Weapons/warframes keep rank · Forma · mastery status.
 
-**Export CSV** / **Export XLSX** flatten the active section (all sections on first load) with columns `type, name, group, subtype, rank, count, polarized, mastery`.
+**Export CSV** / **Export XLSX** flatten the selected sections with columns `type, name, group, subtype, rank, count, polarized, mastery`.
 
 ## Rebuild catalog
 

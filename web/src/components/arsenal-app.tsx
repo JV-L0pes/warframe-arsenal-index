@@ -9,8 +9,6 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
-  buildCategorizedLists,
-  buildCsv,
   formatSyncedAt,
   isInventoryStale,
   parseInventoryFile,
@@ -27,6 +25,7 @@ import {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DisclaimerDialog } from "@/components/disclaimer-dialog";
+import { ExportDialog } from "@/components/export-dialog";
 import { GearRow, ItemRow } from "@/components/arsenal-rows";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -51,7 +50,6 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     "arsenal-index:hide-augments",
     true,
   );
-  const [copied, setCopied] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const ownedModMap = useMemo(() => {
@@ -230,47 +228,6 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     });
     if (!result.ok) throw new Error(result.error);
     persistOwned(result.owned);
-  }
-
-  function exportLists() {
-    const scope = section as "mods" | "weapons" | "warframes" | "arcanes";
-    const lists = buildCategorizedLists(catalog, owned, scope);
-    const blob = new Blob([JSON.stringify(lists, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `inventory_${scope}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  async function copyLists() {
-    const scope = section as "mods" | "weapons" | "warframes" | "arcanes";
-    const lists = buildCategorizedLists(catalog, owned, scope);
-    await navigator.clipboard.writeText(JSON.stringify(lists, null, 2));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
-  }
-
-  function exportCsv() {
-    const scope = section as "mods" | "weapons" | "warframes" | "arcanes";
-    const blob = new Blob([buildCsv(catalog, owned, scope)], {
-      type: "text/csv;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `inventory_${scope}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  async function exportXlsx() {
-    const scope = section as "mods" | "weapons" | "warframes" | "arcanes";
-    const { downloadInventoryXlsx } = await import("@/lib/xlsx");
-    await downloadInventoryXlsx(catalog, owned, scope);
   }
 
   const groups = useMemo(() => {
@@ -532,38 +489,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                 >
                   Import JSON
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={exportLists}
-                  disabled={!owned}
-                >
-                  Export lists
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={exportCsv}
-                  disabled={!owned}
-                >
-                  Export CSV
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void exportXlsx()}
-                  disabled={!owned}
-                >
-                  Export XLSX
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={copyLists}
-                  disabled={!owned}
-                >
-                  {copied ? "Copied" : "Copy JSON"}
-                </Button>
+                <ExportDialog catalog={catalog} owned={owned} />
                 {owned && (
                   <Button
                     variant="ghost"

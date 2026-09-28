@@ -4,6 +4,7 @@ import {
   buildCsv,
   buildInventoryRows,
   enrichOwnedSnapshot,
+  exportScopeSlug,
   isInventoryStale,
   parseInventoryFile,
   parseRawInventory,
@@ -161,6 +162,15 @@ describe("buildCategorizedLists", () => {
       expect.objectContaining({ name: "Nataruk", rank: 3, mastery: "open" }),
     ]);
   });
+
+  it("accepts a combination of sections", () => {
+    const owned = parseRawInventory(RAW, "Tenno");
+    const lists = buildCategorizedLists(CATALOG, owned, ["mods", "warframes"]);
+    expect(lists.mods_rifle).toEqual(["Serration"]);
+    expect(lists.warframes).toHaveLength(1);
+    expect(lists.arcanes).toBeUndefined();
+    expect(lists.primary_bow).toBeUndefined();
+  });
 });
 
 describe("buildCsv", () => {
@@ -223,5 +233,25 @@ describe("buildInventoryRows", () => {
       0,
       "open",
     ]);
+  });
+
+  it("filters rows to a combination of sections", () => {
+    const owned = parseRawInventory(RAW, "Tenno");
+    const rows = buildInventoryRows(CATALOG, owned, ["weapons", "arcanes"]);
+    expect(rows.some((r) => r[0] === "weapon" && r[1] === "Nataruk")).toBe(true);
+    expect(rows.some((r) => r[0] === "arcane")).toBe(true);
+    expect(rows.some((r) => r[0] === "mod")).toBe(false);
+    expect(rows.some((r) => r[0] === "warframe")).toBe(false);
+  });
+});
+
+describe("exportScopeSlug", () => {
+  it("names combined scopes in canonical order", () => {
+    expect(exportScopeSlug("all")).toBe("all");
+    expect(exportScopeSlug(["mods"])).toBe("mods");
+    expect(exportScopeSlug(["weapons", "mods"])).toBe("mods-weapons");
+    expect(exportScopeSlug(["mods", "weapons", "warframes", "arcanes"])).toBe(
+      "all",
+    );
   });
 });

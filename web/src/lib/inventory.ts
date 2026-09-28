@@ -287,18 +287,35 @@ export type ExportEntry = {
 export type ExportPayload = Record<string, string[] | ExportEntry[]>;
 
 export type ExportScope = "all" | "mods" | "weapons" | "warframes" | "arcanes";
+export type ExportScopeSelection = ExportScope | ExportScope[];
+
+const ALL_SECTIONS: ExportScope[] = ["mods", "weapons", "warframes", "arcanes"];
+
+function scopesOf(scope: ExportScopeSelection): Set<ExportScope> {
+  const list =
+    scope === "all" ? ALL_SECTIONS : Array.isArray(scope) ? scope : [scope];
+  return new Set(list);
+}
+
+/** Filename slug: "all", one section, or combined ("mods-weapons") in canonical order. */
+export function exportScopeSlug(scope: ExportScopeSelection): string {
+  const scopes = scopesOf(scope);
+  if (scopes.size === ALL_SECTIONS.length) return "all";
+  return ALL_SECTIONS.filter((s) => scopes.has(s)).join("-");
+}
 
 export function buildCategorizedLists(
   catalog: Catalog,
   owned: OwnedSnapshot | null,
-  scope: ExportScope = "all",
+  scope: ExportScopeSelection = "all",
 ): ExportPayload {
+  const scopes = scopesOf(scope);
   const ownedMods = new Map(
     (owned?.mods ?? []).map((m) => [m.uniqueName, m] as const),
   );
   const lists: ExportPayload = {};
 
-  if (scope === "all" || scope === "mods") {
+  if (scopes.has("mods")) {
     for (const mod of catalog.mods) {
       const o = ownedMods.get(mod.uniqueName);
       if (!o) continue;
@@ -308,7 +325,7 @@ export function buildCategorizedLists(
     }
   }
 
-  if (scope === "all" || scope === "arcanes") {
+  if (scopes.has("arcanes")) {
     const ownedArcanes = new Map(
       (owned?.arcanes ?? []).map((a) => [a.uniqueName, a] as const),
     );
@@ -322,7 +339,7 @@ export function buildCategorizedLists(
     }
   }
 
-  if (scope === "all" || scope === "weapons") {
+  if (scopes.has("weapons")) {
     const ownedWeapons = new Map(
       (owned?.weapons ?? []).map((w) => [w.uniqueName, w] as const),
     );
@@ -342,7 +359,7 @@ export function buildCategorizedLists(
     }
   }
 
-  if (scope === "all" || scope === "warframes") {
+  if (scopes.has("warframes")) {
     const ownedFrames = new Map(
       (owned?.warframes ?? []).map((f) => [f.uniqueName, f] as const),
     );
@@ -379,14 +396,15 @@ export type InventoryRow = (string | number)[];
 export function buildInventoryRows(
   catalog: Catalog,
   owned: OwnedSnapshot | null,
-  scope: ExportScope = "all",
+  scope: ExportScopeSelection = "all",
 ): InventoryRow[] {
+  const scopes = scopesOf(scope);
   const rows: InventoryRow[] = [
     ["type", "name", "group", "subtype", "rank", "count", "polarized", "mastery"],
   ];
   const rank = (r: number | null | undefined) => r ?? "";
 
-  if (scope === "all" || scope === "mods") {
+  if (scopes.has("mods")) {
     const ownedMods = new Map(
       (owned?.mods ?? []).map((m) => [m.uniqueName, m] as const),
     );
@@ -406,7 +424,7 @@ export function buildInventoryRows(
     }
   }
 
-  if (scope === "all" || scope === "arcanes") {
+  if (scopes.has("arcanes")) {
     const ownedArcanes = new Map(
       (owned?.arcanes ?? []).map((a) => [a.uniqueName, a] as const),
     );
@@ -426,7 +444,7 @@ export function buildInventoryRows(
     }
   }
 
-  if (scope === "all" || scope === "weapons") {
+  if (scopes.has("weapons")) {
     const ownedWeapons = new Map(
       (owned?.weapons ?? []).map((w) => [w.uniqueName, w] as const),
     );
@@ -446,7 +464,7 @@ export function buildInventoryRows(
     }
   }
 
-  if (scope === "all" || scope === "warframes") {
+  if (scopes.has("warframes")) {
     const ownedFrames = new Map(
       (owned?.warframes ?? []).map((f) => [f.uniqueName, f] as const),
     );
@@ -477,7 +495,7 @@ function csvField(value: string): string {
 export function buildCsv(
   catalog: Catalog,
   owned: OwnedSnapshot | null,
-  scope: ExportScope = "all",
+  scope: ExportScopeSelection = "all",
 ): string {
   const body = buildInventoryRows(catalog, owned, scope)
     .map((row) => row.map((v) => csvField(String(v))).join(","))
