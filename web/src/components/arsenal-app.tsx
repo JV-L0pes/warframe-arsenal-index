@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   formatSyncedAt,
   isInventoryStale,
+  isMasteryDoneFromXp,
   parseInventoryFile,
   STALE_AFTER_DAYS,
 } from "@/lib/inventory";
@@ -82,6 +83,14 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
       m.set(a.uniqueName, { rank: a.rank, count: a.count });
     }
     return m;
+  }, [owned]);
+
+  const masteredSet = useMemo(() => {
+    const s = new Set<string>();
+    for (const m of owned?.mastery ?? []) {
+      if (isMasteryDoneFromXp(m.uniqueName, m.xp)) s.add(m.uniqueName);
+    }
+    return s;
   }, [owned]);
 
   const arcanes = useMemo(() => catalog.arcanes ?? [], [catalog.arcanes]);
@@ -570,6 +579,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                       name={w.name}
                       owned={ownedWeaponMap.get(w.uniqueName)}
                       subtype={w.subtype}
+                      mastered={masteredSet.has(w.uniqueName)}
                     />
                   ))}
                 </ul>
@@ -582,6 +592,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                       key={f.uniqueName}
                       name={f.name}
                       owned={ownedFrameMap.get(f.uniqueName)}
+                      mastered={masteredSet.has(f.uniqueName)}
                     />
                   ))}
                 </ul>

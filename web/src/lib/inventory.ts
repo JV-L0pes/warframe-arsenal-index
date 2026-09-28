@@ -2,6 +2,7 @@ import type { Catalog, OwnedSnapshot } from "@/lib/types";
 import {
   isBaseMasteryDone,
   rankFromXp,
+  xpForRank,
   type AffinityKind,
 } from "@/lib/affinity";
 
@@ -126,6 +127,18 @@ export function parseRawInventory(
     }
   }
 
+  const mastery: NonNullable<OwnedSnapshot["mastery"]> = [];
+  const xpInfo = inv.XPInfo;
+  if (Array.isArray(xpInfo)) {
+    for (const entry of xpInfo) {
+      if (!entry || typeof entry !== "object") continue;
+      const e = entry as Record<string, unknown>;
+      if (typeof e.ItemType !== "string" || !e.ItemType) continue;
+      if (typeof e.XP !== "number") continue;
+      mastery.push({ uniqueName: e.ItemType, xp: e.XP });
+    }
+  }
+
   return {
     account,
     syncedAt: meta?.syncedAt ?? new Date().toISOString(),
@@ -134,6 +147,7 @@ export function parseRawInventory(
     weapons,
     warframes,
     arcanes: [...arcanes.values()],
+    mastery,
   };
 }
 
@@ -147,8 +161,27 @@ export function isOwnedSnapshot(value: unknown): value is OwnedSnapshot {
   );
 }
 
+/** Affinity curve a uniqueName belongs to, for mastery thresholds. */
+export function masteryKind(uniqueName: string): AffinityKind | null {
+  if (uniqueName.includes("/Powersuits/")) return "warframe";
+  if (uniqueName.includes("/Weapons/")) return "weapon";
+  return null;
+}
+
+/** Rank-30 mastery done from lifetime XP (XPInfo) — works for sold items too. */
+export function isMasteryDoneFromXp(uniqueName: string, xp: number): boolean {
+  const kind = masteryKind(uniqueName);
+  if (!kind) return false;
+  return xp >= xpForRank(kind, 30);
+}
+
 /** Fill rank / masteryDone; migrate CosmeticEnhancers out of mods → arcanes. */
 export function enrichOwnedSnapshot(owned: OwnedSnapshot): OwnedSnapshot {
+  const masteryDoneByXp = new Set(
+    (owned.mastery ?? [])
+      .filter((m) => isMasteryDoneFromXp(m.uniqueName, m.xp))
+      .map((m) => m.uniqueName),
+  );
   const arcaneMap = new Map(
     (owned.arcanes ?? []).map((a) => [a.uniqueName, { ...a }] as const),
   );
@@ -184,7 +217,9 @@ export function enrichOwnedSnapshot(owned: OwnedSnapshot): OwnedSnapshot {
         ...w,
         polarized,
         rank,
-        masteryDone: w.masteryDone ?? isBaseMasteryDone({ polarized, rank }),
+        masteryDone:
+          (w.masteryDone ?? isBaseMasteryDone({ polarized, rank })) ||
+          masteryDoneByXp.has(w.uniqueName),
       };
     }),
     warframes: owned.warframes.map((f) => {
@@ -194,7 +229,9 @@ export function enrichOwnedSnapshot(owned: OwnedSnapshot): OwnedSnapshot {
         ...f,
         polarized,
         rank,
-        masteryDone: f.masteryDone ?? isBaseMasteryDone({ polarized, rank }),
+        masteryDone:
+          (f.masteryDone ?? isBaseMasteryDone({ polarized, rank })) ||
+          masteryDoneByXp.has(f.uniqueName),
       };
     }),
   };

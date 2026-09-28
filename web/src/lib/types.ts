@@ -114,6 +114,8 @@ export type OwnedSnapshot = {
   weapons: OwnedWeapon[];
   warframes: OwnedWarframe[];
   arcanes?: OwnedArcane[];
+  /** Lifetime affinity XP per item type (XPInfo) — persists after selling */
+  mastery?: { uniqueName: string; xp: number }[];
 };
 
 export type OwnershipFilter = "all" | "owned" | "missing";

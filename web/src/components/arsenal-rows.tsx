@@ -95,10 +95,13 @@ export function GearRow({
   name,
   owned,
   subtype,
+  mastered,
 }: {
   name: string;
   owned?: GearProgress;
   subtype?: string;
+  /** Lifetime mastery done per XPInfo, even when the item is no longer owned */
+  mastered?: boolean;
 }) {
   return (
     <li className="flex items-center justify-between gap-3 px-2 py-2.5">
@@ -131,6 +134,14 @@ export function GearRow({
               <span title="Still earns Mastery Rank XP">MR open</span>
             )}
           </>
+        )}
+        {!owned && mastered && (
+          <span
+            className="text-foreground/80"
+            title="Mastery already claimed before it was sold — rebuilding it won't give more MR XP"
+          >
+            mastery done
+          </span>
         )}
         {subtype && <span className="capitalize opacity-70">{subtype}</span>}
       </div>

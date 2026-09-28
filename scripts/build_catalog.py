@@ -496,6 +496,16 @@ def main() -> int:
                 owned["warframes"].append(
                     {"uniqueName": e["ItemType"], "xp": e.get("XP")}
                 )
+        mastery = []
+        for e in inv.get("XPInfo") or []:
+            if (
+                isinstance(e, dict)
+                and e.get("ItemType")
+                and isinstance(e.get("XP"), (int, float))
+            ):
+                mastery.append({"uniqueName": e["ItemType"], "xp": e["XP"]})
+        if mastery:
+            owned["mastery"] = mastery
         (OUT / "owned.json").write_text(
             json.dumps(owned, ensure_ascii=False, indent=2)
         )

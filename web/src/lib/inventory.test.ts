@@ -6,6 +6,8 @@ import {
   enrichOwnedSnapshot,
   exportScopeSlug,
   isInventoryStale,
+  isMasteryDoneFromXp,
+  masteryKind,
   parseInventoryFile,
   parseRawInventory,
   STALE_AFTER_DAYS,
@@ -37,6 +39,11 @@ const RAW = {
       ItemCount: 1,
       UpgradeFingerprint: '{"lvl":10}',
     },
+  ],
+  XPInfo: [
+    { ItemType: "/Lotus/Weapons/Tenno/Bows/Nataruk", XP: 450000 },
+    { ItemType: "/Lotus/Powersuits/Volt/VoltPrime", XP: 900000 },
+    { ItemType: "/Lotus/Weapons/Tenno/Melee/LongSword/LongSword", XP: 1000 },
   ],
 };
 
@@ -83,6 +90,30 @@ describe("parseRawInventory", () => {
     });
     expect(owned.warframes[0].masteryDone).toBe(true);
   });
+
+  it("collects lifetime XPInfo records — sold items included", () => {
+    const owned = parseRawInventory(RAW, "Tenno");
+    expect(owned.mastery).toEqual([
+      { uniqueName: WEAPON_UN, xp: 450000 },
+      { uniqueName: FRAME_UN, xp: 900000 },
+      { uniqueName: "/Lotus/Weapons/Tenno/Melee/LongSword/LongSword", xp: 1000 },
+    ]);
+  });
+});
+
+describe("mastery from XPInfo", () => {
+  it("classifies weapons and warframes by path", () => {
+    expect(masteryKind(WEAPON_UN)).toBe("weapon");
+    expect(masteryKind(FRAME_UN)).toBe("warframe");
+    expect(masteryKind("/Lotus/Types/Friendly/Pets/CatbrowPet")).toBeNull();
+  });
+
+  it("uses rank-30 affinity thresholds per item kind", () => {
+    expect(isMasteryDoneFromXp(WEAPON_UN, 450000)).toBe(true);
+    expect(isMasteryDoneFromXp(WEAPON_UN, 449999)).toBe(false);
+    expect(isMasteryDoneFromXp(FRAME_UN, 900000)).toBe(true);
+    expect(isMasteryDoneFromXp(FRAME_UN, 899999)).toBe(false);
+  });
 });
 
 describe("enrichOwnedSnapshot", () => {
@@ -102,6 +133,16 @@ describe("enrichOwnedSnapshot", () => {
       { uniqueName: ARCANE_UN, rank: 4, count: 2 },
     ]);
     expect(owned.weapons[0]).toMatchObject({ rank: 1, masteryDone: false });
+  });
+
+  it("marks owned gear mastered when XPInfo remembers it (sold and re-acquired)", () => {
+    const owned = enrichOwnedSnapshot({
+      mods: [],
+      weapons: [{ uniqueName: WEAPON_UN, xp: 500, slot: "primary" }],
+      warframes: [],
+      mastery: [{ uniqueName: WEAPON_UN, xp: 450000 }],
+    });
+    expect(owned.weapons[0]).toMatchObject({ rank: 1, masteryDone: true });
   });
 });
 
