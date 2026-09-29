@@ -196,6 +196,10 @@ const CATALOG: Catalog = {
   ],
   warframes: [{ uniqueName: FRAME_UN, name: "Volt Prime" }],
   arcanes: [{ uniqueName: ARCANE_UN, name: "Arcane Fury" }],
+  resources: [
+    { uniqueName: "/Lotus/Types/Items/MiscItems/Rubedo", name: "Rubedo" },
+    { uniqueName: "/Lotus/Types/Items/MiscItems/Ferrite", name: "Ferrite" },
+  ],
 };
 
 describe("buildCategorizedLists", () => {
@@ -223,6 +227,16 @@ describe("buildCategorizedLists", () => {
     expect(lists.warframes).toHaveLength(1);
     expect(lists.arcanes).toBeUndefined();
     expect(lists.primary_bow).toBeUndefined();
+  });
+
+  it("exports resources with counts, sorted by name", () => {
+    const owned = parseRawInventory(RAW, "Tenno");
+    const lists = buildCategorizedLists(CATALOG, owned, ["resources"]);
+    expect(lists.resources).toEqual([
+      { name: "Ferrite", count: 70 },
+      { name: "Rubedo", count: 660 },
+    ]);
+    expect(lists.mods_rifle).toBeUndefined();
   });
 });
 
@@ -296,6 +310,13 @@ describe("buildInventoryRows", () => {
     expect(rows.some((r) => r[0] === "mod")).toBe(false);
     expect(rows.some((r) => r[0] === "warframe")).toBe(false);
   });
+
+  it("lists resource rows with counts", () => {
+    const owned = parseRawInventory(RAW, "Tenno");
+    const rows = buildInventoryRows(CATALOG, owned, "resources");
+    expect(rows).toContainEqual(["resource", "Ferrite", "", "", "", 70, "", ""]);
+    expect(rows).toContainEqual(["resource", "Rubedo", "", "", "", 660, "", ""]);
+  });
 });
 
 describe("exportScopeSlug", () => {
@@ -304,7 +325,10 @@ describe("exportScopeSlug", () => {
     expect(exportScopeSlug(["mods"])).toBe("mods");
     expect(exportScopeSlug(["weapons", "mods"])).toBe("mods-weapons");
     expect(exportScopeSlug(["mods", "weapons", "warframes", "arcanes"])).toBe(
-      "all",
+      "mods-weapons-warframes-arcanes",
     );
+    expect(
+      exportScopeSlug(["mods", "weapons", "warframes", "arcanes", "resources"]),
+    ).toBe("all");
   });
 });

@@ -23,6 +23,7 @@ const SECTIONS: { id: ExportScope; label: string }[] = [
   { id: "weapons", label: "Weapons" },
   { id: "warframes", label: "Warframes" },
   { id: "arcanes", label: "Arcanes" },
+  { id: "resources", label: "Resources" },
 ];
 
 const FORMATS = ["json", "csv", "xlsx"] as const;

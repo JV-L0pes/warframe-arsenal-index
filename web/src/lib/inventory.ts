@@ -336,10 +336,22 @@ export type ExportEntry = {
 /** Mods are plain names; weapons/warframes keep status objects. */
 export type ExportPayload = Record<string, string[] | ExportEntry[]>;
 
-export type ExportScope = "all" | "mods" | "weapons" | "warframes" | "arcanes";
+export type ExportScope =
+  | "all"
+  | "mods"
+  | "weapons"
+  | "warframes"
+  | "arcanes"
+  | "resources";
 export type ExportScopeSelection = ExportScope | ExportScope[];
 
-const ALL_SECTIONS: ExportScope[] = ["mods", "weapons", "warframes", "arcanes"];
+const ALL_SECTIONS: ExportScope[] = [
+  "mods",
+  "weapons",
+  "warframes",
+  "arcanes",
+  "resources",
+];
 
 function scopesOf(scope: ExportScopeSelection): Set<ExportScope> {
   const list =
@@ -427,6 +439,19 @@ export function buildCategorizedLists(
       });
     }
     if (frames.length) lists.warframes = frames;
+  }
+
+  if (scopes.has("resources")) {
+    const ownedResources = new Map(
+      (owned?.resources ?? []).map((r) => [r.uniqueName, r] as const),
+    );
+    const entries: ExportEntry[] = [];
+    for (const r of catalog.resources ?? []) {
+      const o = ownedResources.get(r.uniqueName);
+      if (!o) continue;
+      entries.push({ name: r.name, count: o.count });
+    }
+    if (entries.length) lists.resources = entries;
   }
 
   for (const key of Object.keys(lists)) {
@@ -531,6 +556,17 @@ export function buildInventoryRows(
         o.polarized ?? 0,
         o.masteryDone ? "done" : "open",
       ]);
+    }
+  }
+
+  if (scopes.has("resources")) {
+    const ownedResources = new Map(
+      (owned?.resources ?? []).map((r) => [r.uniqueName, r] as const),
+    );
+    for (const r of catalog.resources ?? []) {
+      const o = ownedResources.get(r.uniqueName);
+      if (!o) continue;
+      rows.push(["resource", r.name, "", "", "", o.count, "", ""]);
     }
   }
 

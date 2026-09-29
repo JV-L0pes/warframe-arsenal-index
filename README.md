@@ -15,7 +15,7 @@ Cross-check the full Public Export catalog (mods, weapons, warframes, arcanes) a
 - Mastery tracking from `XPInfo`: weapons/frames already mastered and sold still show **mastery done** (like the in-game profile)
 - Resources section: owned crafting resources with quantities (from `MiscItems`)
 - Import `inventory_raw.json` from the fetch script (Windows / Linux)
-- Export modal: toggle any combination of sections (mods, weapons, warframes, arcanes) and format (JSON lists, CSV, XLSX)
+- Export modal: toggle any combination of sections (mods, weapons, warframes, arcanes, resources) and format (JSON lists, CSV, XLSX)
 - Copy JSON categorized lists (`mods_rifle`, `primary_bow`, `warframes`, …)
 - Personal inventory never committed (`owned.json` / raw dumps gitignored)
 
@@ -64,7 +64,7 @@ In the UI: **Import JSON** → `scripts/data/inventory_raw.json`
 
 ### Export
 
-**Export…** opens a modal: toggle any combination of sections (Mods, Weapons, Warframes, Arcanes — all on by default) and pick the format. Files are named `inventory_<sections>.<ext>` — `inventory_all.json` when every section is on, `inventory_mods-weapons.csv` for combinations. **Copy JSON** copies the same categorized lists to the clipboard.
+**Export…** opens a modal: toggle any combination of sections (Mods, Weapons, Warframes, Arcanes, Resources — all on by default) and pick the format. Files are named `inventory_<sections>.<ext>` — `inventory_all.json` when every section is on, `inventory_mods-weapons.csv` for combinations. **Copy JSON** copies the same categorized lists to the clipboard.
 
 Categorized lists (JSON) — owned items with status:
 
@@ -88,11 +88,15 @@ Categorized lists (JSON) — owned items with status:
       "masteryDone": true,
       "mastery": "done"
     }
+  ],
+  "resources": [
+    { "name": "Ferrite", "count": 70 },
+    { "name": "Rubedo", "count": 660 }
   ]
 }
 ```
 
-Mods export as **name strings only**. Weapons/warframes keep rank · Forma · mastery status.
+Mods export as **name strings only**. Weapons/warframes keep rank · Forma · mastery status. Resources keep name · count.
 
 **Export CSV** / **Export XLSX** flatten the selected sections with columns `type, name, group, subtype, rank, count, polarized, mastery`.
 
