@@ -139,6 +139,18 @@ export function parseRawInventory(
     }
   }
 
+  const resources: NonNullable<OwnedSnapshot["resources"]> = [];
+  const miscItems = inv.MiscItems;
+  if (Array.isArray(miscItems)) {
+    for (const entry of miscItems) {
+      if (!entry || typeof entry !== "object") continue;
+      const e = entry as Record<string, unknown>;
+      if (typeof e.ItemType !== "string" || !e.ItemType) continue;
+      const count = Number(e.ItemCount ?? 1) || 1;
+      resources.push({ uniqueName: e.ItemType, count });
+    }
+  }
+
   return {
     account,
     syncedAt: meta?.syncedAt ?? new Date().toISOString(),
@@ -148,6 +160,7 @@ export function parseRawInventory(
     warframes,
     arcanes: [...arcanes.values()],
     mastery,
+    resources,
   };
 }
 

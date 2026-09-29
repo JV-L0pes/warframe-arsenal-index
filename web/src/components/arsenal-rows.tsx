@@ -91,6 +91,33 @@ export function ItemRow({
   );
 }
 
+export function ResourceRow({
+  name,
+  count,
+}: {
+  name: string;
+  count?: number;
+}) {
+  return (
+    <li className="flex items-center justify-between gap-3 px-2 py-2.5">
+      <div className="flex min-w-0 items-center gap-2">
+        <OwnedDot owned={(count ?? 0) > 0} />
+        <span
+          className={cn(
+            "truncate text-sm",
+            (count ?? 0) > 0 ? "text-foreground" : "text-muted-foreground",
+          )}
+        >
+          {name}
+        </span>
+      </div>
+      <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+        {count != null ? count.toLocaleString("en-US") : "—"}
+      </span>
+    </li>
+  );
+}
+
 export function GearRow({
   name,
   owned,

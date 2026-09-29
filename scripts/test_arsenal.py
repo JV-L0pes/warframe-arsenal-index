@@ -7,6 +7,7 @@ import lzma
 import struct
 import unittest
 
+from build_catalog import is_resource_item
 from categorize import mod_bucket, weapon_subtype
 from fetch_inventory import ACCOUNT_ID_LEN, extract_authz
 from lzma_export import decompress_public_export_lzma
@@ -80,6 +81,26 @@ class CategorizeTest(unittest.TestCase):
         self.assertEqual(
             weapon_subtype("/Lotus/Weapons/Tenno/Melee/Nikana", meta), "nikana"
         )
+
+
+class ResourceFilterTest(unittest.TestCase):
+    def test_keeps_resource_buckets(self):
+        self.assertTrue(is_resource_item("/Lotus/Types/Items/MiscItems/Ferrite"))
+        self.assertTrue(
+            is_resource_item("/Lotus/Types/Gameplay/Venus/Resources/CoolantItem")
+        )
+        self.assertTrue(
+            is_resource_item("/Lotus/Types/Items/Gems/Deimos/TearAzurite")
+        )
+
+    def test_drops_non_resource_buckets(self):
+        self.assertFalse(
+            is_resource_item("/Lotus/Types/Game/Projections/T1VoidProjectionXB")
+        )
+        self.assertFalse(
+            is_resource_item("/Lotus/Types/Recipes/Weapons/KarakBlueprint")
+        )
+        self.assertFalse(is_resource_item("/Lotus/Types/Items/ShipDecos/Foo"))
 
 
 if __name__ == "__main__":

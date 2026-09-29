@@ -45,6 +45,10 @@ const RAW = {
     { ItemType: "/Lotus/Powersuits/Volt/VoltPrime", XP: 900000 },
     { ItemType: "/Lotus/Weapons/Tenno/Melee/LongSword/LongSword", XP: 1000 },
   ],
+  MiscItems: [
+    { ItemType: "/Lotus/Types/Items/MiscItems/Ferrite", ItemCount: 70 },
+    { ItemType: "/Lotus/Types/Items/MiscItems/Rubedo", ItemCount: 660 },
+  ],
 };
 
 const MOD_UN = "/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod";
@@ -97,6 +101,14 @@ describe("parseRawInventory", () => {
       { uniqueName: WEAPON_UN, xp: 450000 },
       { uniqueName: FRAME_UN, xp: 900000 },
       { uniqueName: "/Lotus/Weapons/Tenno/Melee/LongSword/LongSword", xp: 1000 },
+    ]);
+  });
+
+  it("collects MiscItems resources with counts", () => {
+    const owned = parseRawInventory(RAW, "Tenno");
+    expect(owned.resources).toEqual([
+      { uniqueName: "/Lotus/Types/Items/MiscItems/Ferrite", count: 70 },
+      { uniqueName: "/Lotus/Types/Items/MiscItems/Rubedo", count: 660 },
     ]);
   });
 });

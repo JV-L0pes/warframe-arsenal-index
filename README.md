@@ -13,6 +13,7 @@ Cross-check the full Public Export catalog (mods, weapons, warframes, arcanes) a
 - Full mod catalog by class (rifle, shotgun, pistol, melee, warframe, aura, stance, …)
 - Owned / missing filters + search
 - Mastery tracking from `XPInfo`: weapons/frames already mastered and sold still show **mastery done** (like the in-game profile)
+- Resources section: owned crafting resources with quantities (from `MiscItems`)
 - Import `inventory_raw.json` from the fetch script (Windows / Linux)
 - Export modal: toggle any combination of sections (mods, weapons, warframes, arcanes) and format (JSON lists, CSV, XLSX)
 - Copy JSON categorized lists (`mods_rifle`, `primary_bow`, `warframes`, …)
@@ -128,6 +129,7 @@ Quality checks run on every push/PR via [`.github/workflows/ci.yml`](.github/wor
 | Inventory dump | High *if fresh* | Snapshot at fetch/import — UI marks **stale** after 7 days |
 | Mod copy count | High | `RawUpgrades` (unranked stacks) + `Upgrades` (ranked instances) are disjoint pools and are summed per `uniqueName` |
 | Sold-item mastery | High | `XPInfo` lifetime XP per item type — marks MR already claimed even after selling, like the in-game profile |
+| Resource names | High | Public Export `ExportResources`, curated buckets (MiscItems, open-world, gems, fish…) |
 | Heuristic subtype leftover | Low | Only when WFCD has no `uniqueName` |
 
 **Guarantees we keep:**

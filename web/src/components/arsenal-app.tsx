@@ -27,7 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { DisclaimerDialog } from "@/components/disclaimer-dialog";
 import { ExportDialog } from "@/components/export-dialog";
-import { GearRow, ItemRow } from "@/components/arsenal-rows";
+import { GearRow, ItemRow, ResourceRow } from "@/components/arsenal-rows";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type Props = {
@@ -92,6 +92,16 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     }
     return s;
   }, [owned]);
+
+  const ownedResourceMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of owned?.resources ?? []) {
+      m.set(r.uniqueName, (m.get(r.uniqueName) ?? 0) + r.count);
+    }
+    return m;
+  }, [owned]);
+
+  const resources = useMemo(() => catalog.resources ?? [], [catalog.resources]);
 
   const arcanes = useMemo(() => catalog.arcanes ?? [], [catalog.arcanes]);
 
@@ -191,6 +201,17 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     });
   }, [arcanes, filter, ownedArcaneMap, query]);
 
+  const filteredResources = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return resources.filter((r) => {
+      const isOwned = ownedResourceMap.has(r.uniqueName);
+      if (filter === "owned" && !isOwned) return false;
+      if (filter === "missing" && isOwned) return false;
+      if (!q) return true;
+      return r.name.toLowerCase().includes(q);
+    });
+  }, [resources, filter, ownedResourceMap, query]);
+
   const progress = useMemo(() => {
     if (section === "mods") {
       return categoryCounts[category] ?? { total: 0, owned: 0 };
@@ -203,6 +224,12 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
         ownedArcaneMap.has(a.uniqueName),
       ).length;
       return { total: arcanes.length, owned: ownedN };
+    }
+    if (section === "resources") {
+      const ownedN = resources.filter((r) =>
+        ownedResourceMap.has(r.uniqueName),
+      ).length;
+      return { total: resources.length, owned: ownedN };
     }
     const ownedN = catalog.warframes.filter((f) =>
       ownedFrameMap.has(f.uniqueName),
@@ -218,6 +245,8 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
     ownedFrameMap,
     arcanes,
     ownedArcaneMap,
+    resources,
+    ownedResourceMap,
   ]);
 
   const pct =
@@ -309,6 +338,7 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                   ["weapons", "Weapons"],
                   ["warframes", "Warframes"],
                   ["arcanes", "Arcanes"],
+                  ["resources", "Resources"],
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -460,7 +490,9 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                           : category
                         : section === "arcanes"
                           ? "Arcanes"
-                          : "Warframes"}
+                          : section === "resources"
+                            ? "Resources"
+                            : "Warframes"}
                   </h2>
                   <span className="font-mono text-xs text-muted-foreground tabular-nums">
                     {progress.owned}/{progress.total} · {pct}%
@@ -612,6 +644,23 @@ export function ArsenalApp({ catalog, initialOwned }: Props) {
                   {filteredArcanes.length === 0 && (
                     <li className="px-3 py-12 text-center text-sm text-muted-foreground">
                       No arcanes match.
+                    </li>
+                  )}
+                </ul>
+              )}
+
+              {section === "resources" && (
+                <ul className="divide-y divide-border">
+                  {filteredResources.map((r) => (
+                    <ResourceRow
+                      key={r.uniqueName}
+                      name={r.name}
+                      count={ownedResourceMap.get(r.uniqueName)}
+                    />
+                  ))}
+                  {filteredResources.length === 0 && (
+                    <li className="px-3 py-12 text-center text-sm text-muted-foreground">
+                      No resources match.
                     </li>
                   )}
                 </ul>

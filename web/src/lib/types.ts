@@ -57,6 +57,11 @@ export type CatalogArcane = {
   rarity?: ModRarity;
 };
 
+export type CatalogResource = {
+  uniqueName: string;
+  name: string;
+};
+
 export type Catalog = {
   generatedFrom: string;
   generatedAt?: string;
@@ -66,11 +71,13 @@ export type Catalog = {
     weapons: number;
     warframes: number;
     arcanes?: number;
+    resources?: number;
   };
   mods: CatalogMod[];
   weapons: CatalogWeapon[];
   warframes: CatalogWarframe[];
   arcanes?: CatalogArcane[];
+  resources?: CatalogResource[];
 };
 
 export type OwnedMod = {
@@ -116,11 +123,13 @@ export type OwnedSnapshot = {
   arcanes?: OwnedArcane[];
   /** Lifetime affinity XP per item type (XPInfo) — persists after selling */
   mastery?: { uniqueName: string; xp: number }[];
+  /** Crafting resources (MiscItems stacks) */
+  resources?: { uniqueName: string; count: number }[];
 };
 
 export type OwnershipFilter = "all" | "owned" | "missing";
 
-export type Section = "mods" | "weapons" | "warframes" | "arcanes";
+export type Section = "mods" | "weapons" | "warframes" | "arcanes" | "resources";
 
 export const MOD_CATEGORY_META: {
   id: ModCategory | string;

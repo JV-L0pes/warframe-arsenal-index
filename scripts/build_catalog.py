@@ -34,7 +34,27 @@ EXPORT_FILES = (
     "ExportUpgrades_en.json",
     "ExportWeapons_en.json",
     "ExportWarframes_en.json",
+    "ExportResources_en.json",
 )
+
+RESOURCE_PREFIXES = (
+    "/Lotus/Types/Items/MiscItems/",
+    "/Lotus/Types/Items/Research/",
+    "/Lotus/Types/Items/Gems/",
+    "/Lotus/Types/Items/Fish/",
+    "/Lotus/Types/Items/Deimos/",
+    "/Lotus/Types/Items/Solaris/",
+    "/Lotus/Types/Items/Eidolon/",
+    "/Lotus/Types/Items/Plants/",
+    "/Lotus/Types/Items/RailjackMiscItems/",
+    "/Lotus/Types/Items/InfestedFoundry/",
+    "/Lotus/Types/Items/FusionTreasures/",
+    "/Lotus/Types/Gameplay/",
+)
+
+
+def is_resource_item(unique_name: str) -> bool:
+    return unique_name.startswith(RESOURCE_PREFIXES)
 
 MOD_MAP = {
     "WARFRAME": "warframe",
@@ -221,6 +241,25 @@ def load_arcanes(*, refresh: bool) -> list[dict]:
     return sorted(out, key=lambda x: x["name"].lower())
 
 
+def load_resource_catalog() -> list[dict]:
+    """Curated resource subset of ExportResources (inventory MiscItems names)."""
+    data = json.loads(
+        (CACHE / "ExportResources_en.json").read_text(encoding="utf-8")
+    )
+    out: list[dict] = []
+    seen: set[str] = set()
+    for e in data.get("ExportResources") or []:
+        if not isinstance(e, dict):
+            continue
+        un = e.get("uniqueName", "")
+        name = clean(e.get("name"))
+        if not un or not name or un in seen or not is_resource_item(un):
+            continue
+        seen.add(un)
+        out.append({"uniqueName": un, "name": name})
+    return sorted(out, key=lambda x: x["name"].lower())
+
+
 def load_warframestat_weapon_types(*, refresh: bool) -> dict[str, str]:
     """uniqueName → normalized subtype (rifle, shotgun, …)."""
     CACHE.mkdir(parents=True, exist_ok=True)
@@ -403,6 +442,10 @@ def main() -> int:
     arcanes = load_arcanes(refresh=refresh)
     print(f"  arcanes: {len(arcanes)}", file=sys.stderr)
 
+    print("loading resources…", file=sys.stderr)
+    resources = load_resource_catalog()
+    print(f"  resources: {len(resources)}", file=sys.stderr)
+
     catalog = {
         "generatedFrom": "Warframe Public Export + warframestat.us + WFCD arcanes",
         "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -417,18 +460,20 @@ def main() -> int:
             "weapons": len(wout),
             "warframes": len(fout),
             "arcanes": len(arcanes),
+            "resources": len(resources),
         },
         "mods": sorted(mods, key=lambda x: x["name"].lower()),
         "weapons": sorted(wout, key=lambda x: x["name"].lower()),
         "warframes": sorted(fout, key=lambda x: x["name"].lower()),
         "arcanes": arcanes,
+        "resources": resources,
     }
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "catalog.json").write_text(json.dumps(catalog, ensure_ascii=False))
     print(
         f"catalog: {len(catalog['mods'])} mods, "
         f"{len(catalog['weapons'])} weapons, {len(catalog['warframes'])} frames, "
-        f"{len(catalog['arcanes'])} arcanes"
+        f"{len(catalog['arcanes'])} arcanes, {len(catalog['resources'])} resources"
     )
     print("mod cats", Counter(m["category"] for m in catalog["mods"]).most_common(8))
 
